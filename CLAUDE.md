@@ -67,7 +67,7 @@ Actions/Tool Window → JiraService → Jira REST API
 ### IntelliJ Platform Integration
 - **Plugin ID**: `com.spectra.intellij.ai`
 - **Target IDE**: IntelliJ IDEA Ultimate 2023.3.6
-- **Java Version**: 17
+- **Java Version**: 1.8
 - **Platform Version**: Builds 233 to 242.*
 
 ### Dependencies

@@ -71,8 +71,8 @@ publishPlugin {
 }
 
 tasks.withType(JavaCompile) {
-    sourceCompatibility = '17'
-    targetCompatibility = '17'
+    sourceCompatibility = '1.8'
+    targetCompatibility = '1.8'
 }
 
 test {
@@ -99,7 +99,7 @@ task preparePluginRepository(type: Copy, dependsOn: buildPlugin) {
     <plugin id="${project.group}" 
             url="plugins/${pluginJar.name}" 
             version="${project.version}">
-        <idea-version since-build="233" until-build="242.*"/>
+        <idea-version since-build="233" />
         <name>${project.name}</name>
         <description><![CDATA[
             IntelliJ IDEA plugin for Jira integration with AI capabilities.
