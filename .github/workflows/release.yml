@@ -59,12 +59,12 @@ jobs:
 
     - name: Create Release
       id: create_release
-      uses: actions/create-release@v1
+      uses: softprops/action-gh-release@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ steps.get_version.outputs.tag_name }}
-        release_name: Release ${{ steps.get_version.outputs.version }}
+        name: Release ${{ steps.get_version.outputs.version }}
         body: |
           ## Changes in this Release
           
@@ -87,26 +87,9 @@ jobs:
           After installation, configure the plugin in File → Settings → Tools → Spectra Jira Settings
         draft: false
         prerelease: false
-
-    - name: Upload Plugin JAR
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./build/distributions/spectra-intellij-ai-${{ steps.get_version.outputs.version }}.zip
-        asset_name: spectra-intellij-ai-${{ steps.get_version.outputs.version }}.jar
-        asset_content_type: application/java-archive
-
-    - name: Upload Update Repository XML
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./updatePlugins.xml
-        asset_name: updatePlugins.xml
-        asset_content_type: application/xml
+        files: |
+          ./build/distributions/spectra-intellij-ai-${{ steps.get_version.outputs.version }}.zip
+          ./updatePlugins.xml
 
 #    - name: Publish to JetBrains Marketplace
 #      if: ${{ secrets.PUBLISH_TOKEN }}
