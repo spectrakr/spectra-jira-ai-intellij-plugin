@@ -66,7 +66,7 @@ GitHub Actions 워크플로우는 다음 단계를 수행합니다:
 배포된 플러그인은 다음 URL을 통해 자동 업데이트를 지원합니다:
 
 ```
-https://github.com/rudaks-han/spectra-jira-ai-intellij-plugin/releases/latest/download/updatePlugins.xml
+https://github.com/spectrakr/spectra-jira-ai-intellij-plugin/releases/latest/download/updatePlugins.xml
 ```
 
 ### 사용자 설정 방법

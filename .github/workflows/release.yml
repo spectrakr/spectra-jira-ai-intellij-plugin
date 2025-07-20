@@ -77,7 +77,7 @@ jobs:
           
           **Option 2: Custom Repository (Recommended for Auto-Updates)**
           1. Go to File → Settings → Plugins → Gear Icon → Manage Plugin Repositories
-          2. Add: `https://github.com/rudaks-han/spectra-jira-ai-intellij-plugin/releases/latest/download/updatePlugins.xml`
+          2. Add: `https://github.com/spectrakr/spectra-jira-ai-intellij-plugin/releases/latest/download/updatePlugins.xml`
           3. Search for "Spectra IntelliJ AI" in the Marketplace tab
           
           ### Configuration

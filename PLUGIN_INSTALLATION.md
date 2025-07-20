@@ -18,7 +18,7 @@
 2. 우상단의 톱니바퀴 아이콘을 클릭하고 `Manage Plugin Repositories...`를 선택합니다.
 3. `+` 버튼을 클릭하고 다음 URL을 입력합니다:
    ```
-   https://github.com/rudaks-han/spectra-jira-ai-intellij-plugin/releases/latest/download/updatePlugins.xml
+   https://github.com/spectrakr/spectra-jira-ai-intellij-plugin/releases/latest/download/updatePlugins.xml
    ```
 4. `OK`를 클릭하여 저장합니다.
 
