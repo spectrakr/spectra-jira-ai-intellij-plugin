@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugins>
+    <plugin id="com.spectra.intellij.ai" 
+            url="https://github.com/rudaks-han/spectra-jira-ai-intellij-plugin/releases/latest/download/spectra-intellij-ai-1.0.0.jar"
+            version="0.0.1">
+        <idea-version since-build="233" until-build="242.*"/>
+        <name>Spectra IntelliJ AI</name>
+        <description><![CDATA[
+            IntelliJ IDEA plugin for Jira integration with AI capabilities.
+            
+            Features include:
+            - Jira issue creation with sprint selection
+            - Dynamic issue type selection
+            - Automatic configuration persistence
+            - Integration with Jira Cloud API v3
+            
+            Configure your Jira connection in Settings > Tools > Spectra Jira Settings
+        ]]></description>
+        <change-notes><![CDATA[
+            <h3>Version 1.0.0</h3>
+            <ul>
+                <li>Initial release with basic Jira integration functionality</li>
+                <li>Jira issue creation with sprint assignment</li>
+                <li>Automatic settings persistence</li>
+                <li>Support for Jira Cloud API v3</li>
+            </ul>
+        ]]></change-notes>
+        <vendor>Spectra</vendor>
+        <depends>com.intellij.modules.platform</depends>
+        <depends>com.intellij.modules.java</depends>
+    </plugin>
+</plugins>

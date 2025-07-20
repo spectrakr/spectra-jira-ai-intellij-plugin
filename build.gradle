@@ -1,0 +1,128 @@
+plugins {
+    id 'java'
+    id 'org.jetbrains.intellij' version '1.17.4'
+}
+
+group 'com.spectra.intellij.ai'
+version '0.0.1'
+
+// Dynamic version from Git tag or environment variable
+def getVersionName() {
+    def tagVersion = System.getenv("VERSION")
+    if (tagVersion) {
+        return tagVersion
+    }
+    
+    try {
+        def stdout = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'describe', '--tags', '--dirty', '--always'
+            standardOutput = stdout
+        }
+        return stdout.toString().trim()
+    } catch (Exception e) {
+        return version
+    }
+}
+
+version = getVersionName()
+
+repositories {
+    mavenCentral()
+}
+
+// Configure Gradle IntelliJ Plugin
+intellij {
+    version = '2023.3.6'
+    type = 'IU'
+    plugins = ['java']
+    updateSinceUntilBuild = false
+}
+
+dependencies {
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.google.code.gson:gson:2.10.1'
+    implementation 'org.apache.commons:commons-lang3:3.12.0'
+    
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
+    testImplementation 'org.mockito:mockito-core:5.5.0'
+}
+
+patchPluginXml {
+    sinceBuild = '233'
+    version = project.version
+    changeNotes = provider {
+        def changelogFile = file("CHANGELOG.md")
+        if (changelogFile.exists()) {
+            return changelogFile.text
+        }
+        return "Version ${project.version}"
+    }
+}
+
+signPlugin {
+    certificateChain = System.getenv("CERTIFICATE_CHAIN")
+    privateKey = System.getenv("PRIVATE_KEY")
+    password = System.getenv("PRIVATE_KEY_PASSWORD")
+}
+
+publishPlugin {
+    token = System.getenv("PUBLISH_TOKEN")
+}
+
+tasks.withType(JavaCompile) {
+    sourceCompatibility = '17'
+    targetCompatibility = '17'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+// Custom task to prepare distribution files
+task preparePluginRepository(type: Copy, dependsOn: buildPlugin) {
+    description = 'Prepare plugin repository files for custom update server'
+    group = 'distribution'
+    
+    from buildPlugin.outputs.files
+    into file("$buildDir/repository/plugins")
+    
+    doLast {
+        def pluginJar = buildPlugin.outputs.files.singleFile
+        def repositoryDir = file("$buildDir/repository")
+        def updateXmlFile = file("$repositoryDir/updatePlugins.xml")
+        
+        // Create updatePlugins.xml
+        updateXmlFile.parentFile.mkdirs()
+        updateXmlFile.text = """<?xml version="1.0" encoding="UTF-8"?>
+<plugins>
+    <plugin id="${project.group}" 
+            url="plugins/${pluginJar.name}" 
+            version="${project.version}">
+        <idea-version since-build="233" until-build="242.*"/>
+        <name>${project.name}</name>
+        <description><![CDATA[
+            IntelliJ IDEA plugin for Jira integration with AI capabilities.
+            Features include:
+            - Jira issue creation with sprint selection
+            - Dynamic issue type selection
+        ]]></description>
+        <change-notes><![CDATA[${patchPluginXml.changeNotes.get()}]]></change-notes>
+    </plugin>
+</plugins>"""
+        
+        println "Repository prepared in: $repositoryDir"
+        println "Plugin file: plugins/${pluginJar.name}"
+        println "Version: ${project.version}"
+    }
+}
+
+// Task to create GitHub release assets
+task prepareRelease(type: Copy, dependsOn: [buildPlugin, preparePluginRepository]) {
+    description = 'Prepare files for GitHub release'
+    group = 'distribution'
+    
+    from buildPlugin.outputs.files
+    from file("$buildDir/repository")
+    into file("$buildDir/release")
+}
