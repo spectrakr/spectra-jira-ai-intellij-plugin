@@ -51,7 +51,7 @@ public class CreateIssueDialog extends DialogWrapper {
         gbc.gridx = 0; gbc.gridy = 0;
         panel.add(new JLabel("Summary:"), gbc);
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
-        summaryField = new JTextField(30);
+        summaryField = new JTextField(45);
         panel.add(summaryField, gbc);
         
         // Description
@@ -59,7 +59,7 @@ public class CreateIssueDialog extends DialogWrapper {
         gbc.anchor = GridBagConstraints.NORTHWEST;
         panel.add(new JLabel("Description:"), gbc);
         gbc.gridx = 1; gbc.fill = GridBagConstraints.BOTH; gbc.weightx = 1.0; gbc.weighty = 1.0;
-        descriptionArea = new JTextArea(8, 30);
+        descriptionArea = new JTextArea(12, 45);
         descriptionArea.setLineWrap(true);
         descriptionArea.setWrapStyleWord(true);
         panel.add(new JScrollPane(descriptionArea), gbc);
