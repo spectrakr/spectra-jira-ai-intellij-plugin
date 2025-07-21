@@ -21,6 +21,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+*.http
 
 # Local configuration
 local.properties
