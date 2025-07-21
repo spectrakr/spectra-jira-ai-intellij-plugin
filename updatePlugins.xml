@@ -2,7 +2,7 @@
 <plugins>
     <plugin id="com.spectra.intellij.ai" 
             url="https://github.com/spectrakr/spectra-jira-ai-intellij-plugin/releases/latest/download/spectra-intellij-ai-0.0.1.zip"
-            version="0.0.1">
+            version="0.0.2">
         <idea-version since-build="233" />
         <name>Spectra IntelliJ AI</name>
         <description><![CDATA[
