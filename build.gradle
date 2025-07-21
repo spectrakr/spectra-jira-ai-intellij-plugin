@@ -97,17 +97,25 @@ task preparePluginRepository(type: Copy, dependsOn: buildPlugin) {
         updateXmlFile.text = """<?xml version="1.0" encoding="UTF-8"?>
 <plugins>
     <plugin id="${project.group}" 
-            url="plugins/${pluginJar.name}" 
+            url="https://github.com/spectrakr/spectra-jira-ai-intellij-plugin/releases/latest/download/${pluginJar.name}" 
             version="${project.version}">
         <idea-version since-build="233" />
-        <name>${project.name}</name>
+        <name>Spectra IntelliJ AI</name>
         <description><![CDATA[
             IntelliJ IDEA plugin for Jira integration with AI capabilities.
+            
             Features include:
             - Jira issue creation with sprint selection
             - Dynamic issue type selection
+            - Automatic configuration persistence
+            - Integration with Jira Cloud API v3
+            
+            Configure your Jira connection in Settings > Tools > Spectra Jira Settings
         ]]></description>
         <change-notes><![CDATA[${patchPluginXml.changeNotes.get()}]]></change-notes>
+        <vendor>Spectra</vendor>
+        <depends>com.intellij.modules.platform</depends>
+        <depends>com.intellij.modules.java</depends>
     </plugin>
 </plugins>"""
         

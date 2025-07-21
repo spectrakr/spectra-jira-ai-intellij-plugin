@@ -106,7 +106,7 @@ jobs:
         draft: false
         prerelease: false
         files: |
-          ./build/distributions/spectra-intellij-ai-${{ steps.get_version.outputs.version }}.zip
+          ./build/distributions/*.zip
           ./updatePlugins.xml
 
 #    - name: Publish to JetBrains Marketplace

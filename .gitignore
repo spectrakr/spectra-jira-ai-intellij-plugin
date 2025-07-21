@@ -1,0 +1,26 @@
+# Gradle files
+.gradle/
+build/
+
+# IntelliJ IDEA files
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Plugin distribution files (keep only for releases)
+*.zip
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Local configuration
+local.properties
