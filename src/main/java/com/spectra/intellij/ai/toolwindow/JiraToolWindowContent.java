@@ -17,6 +17,7 @@ public class JiraToolWindowContent {
     private JPanel contentPanel;
     private JLabel statusLabel;
     private JButton createIssueButton;
+    private JButton refreshButton;
     private JTextArea infoArea;
     
     public JiraToolWindowContent(Project project) {
@@ -33,6 +34,10 @@ public class JiraToolWindowContent {
         createIssueButton = new JButton("Create Issue");
         createIssueButton.addActionListener(e -> createIssue());
         buttonPanel.add(createIssueButton);
+        
+        refreshButton = new JButton("Refresh");
+        refreshButton.addActionListener(e -> refreshStatus());
+        buttonPanel.add(refreshButton);
         
         contentPanel.add(buttonPanel, BorderLayout.NORTH);
         
@@ -101,12 +106,18 @@ public class JiraToolWindowContent {
     }
     
     private void refreshStatus() {
-        JiraSettings settings = JiraSettings.getInstance();
-        if (isConfigured()) {
-            updateStatus("Connected to: " + settings.getJiraUrl());
-        } else {
-            updateStatus("Not configured - Configure in Settings");
-        }
+        updateStatus("Checking configuration...");
+        
+        SwingUtilities.invokeLater(() -> {
+            JiraSettings settings = JiraSettings.getInstance();
+            if (isConfigured()) {
+                updateStatus("Connected to: " + settings.getJiraUrl());
+                createIssueButton.setEnabled(true);
+            } else {
+                updateStatus("Not configured - Configure in Settings");
+                createIssueButton.setEnabled(false);
+            }
+        });
     }
     
     private void updateStatus(String status) {
