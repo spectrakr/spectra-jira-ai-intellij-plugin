@@ -17,7 +17,7 @@
             Configure your Jira connection in Settings > Tools > Spectra Jira Settings
         ]]></description>
         <change-notes><![CDATA[
-            <h3>Version 1.0.0</h3>
+            <h3>Version 0.0.2</h3>
             <ul>
                 <li>Initial release with basic Jira integration functionality</li>
                 <li>Jira issue creation with sprint assignment</li>
