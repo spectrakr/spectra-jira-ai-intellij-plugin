@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <plugins>
     <plugin id="com.spectra.intellij.ai" 
-            url="https://github.com/spectrakr/spectra-jira-ai-intellij-plugin/releases/latest/download/spectra-jira-ai-intellij-plugin-v0.0.3-1-ga4f994c.zip"
-            version="0.0.3">
+            url="https://github.com/spectrakr/spectra-jira-ai-intellij-plugin/releases/latest/download/spectra-jira-ai-intellij-plugin-v1.0.01-1-ga4f994c.zip"
+            version="1.0.0">
         <idea-version since-build="233" />
         <name>Spectra IntelliJ AI</name>
         <description><![CDATA[

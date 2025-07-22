@@ -1,6 +1,6 @@
 <idea-plugin>
-    <id>com.spectra.intellij.ai</id>
-    <name>Spectra IntelliJ AI</name>
+    <id>com.spectra.jira.ai</id>
+    <name>Spectra Jira AI</name>
     <version>${project.version}</version>
     <vendor>Spectra</vendor>
 
