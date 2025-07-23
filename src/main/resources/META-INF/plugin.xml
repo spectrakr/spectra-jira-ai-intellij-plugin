@@ -23,8 +23,9 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <!-- Tool Window -->
-        <toolWindow id="Spectra Jira" secondary="true" icon="/icons/spectra-jira_13x13.svg" anchor="right"
-                    factoryClass="com.spectra.intellij.ai.toolwindow.JiraToolWindowFactory"/>
+        <toolWindow id="Spectra Jira" secondary="false" icon="/icons/spectra-jira_13x13.svg" anchor="bottom"
+                    factoryClass="com.spectra.intellij.ai.toolwindow.JiraToolWindowFactory"
+                    canCloseContents="false" doNotActivateOnStart="false"/>
 
         <!-- Actions -->
         <action id="com.spectra.intellij.ai.actions.CreateJiraIssueAction"

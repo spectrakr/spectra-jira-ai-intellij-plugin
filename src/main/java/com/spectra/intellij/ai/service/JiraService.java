@@ -402,6 +402,68 @@ public class JiraService {
         }
     }
 
+    public CompletableFuture<List<JiraIssue>> getProjectIssuesAsync(String projectKey) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return getProjectIssues(projectKey);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to fetch project issues", e);
+            }
+        });
+    }
+
+    public List<JiraIssue> getProjectIssues(String projectKey) throws IOException {
+        String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/search";
+        
+        // JQL to get issues from specific project
+        String jql = "project = \"" + projectKey + "\" ORDER BY updated DESC";
+        
+        JsonObject requestBody = new JsonObject();
+        requestBody.addProperty("jql", jql);
+        requestBody.addProperty("maxResults", 50); // Limit to 50 issues
+        requestBody.addProperty("startAt", 0);
+        
+        // Specify fields to retrieve
+        JsonArray fields = new JsonArray();
+        fields.add("key");
+        fields.add("summary");
+        fields.add("description");
+        fields.add("status");
+        fields.add("assignee");
+        fields.add("priority");
+        fields.add("issuetype");
+        fields.add("updated");
+        requestBody.add("fields", fields);
+        
+        RequestBody body = RequestBody.create(
+            gson.toJson(requestBody),
+            MediaType.parse("application/json")
+        );
+        
+        Request request = buildRequest(url).newBuilder()
+            .post(body)
+            .build();
+        
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("Failed to get project issues: " + response.code());
+            }
+            
+            String responseBody = response.body() != null ? response.body().string() : "{}";
+            JsonObject responseJson = gson.fromJson(responseBody, JsonObject.class);
+            JsonArray issuesArray = responseJson.getAsJsonArray("issues");
+            
+            List<JiraIssue> issues = new ArrayList<>();
+            for (int i = 0; i < issuesArray.size(); i++) {
+                JsonObject issueJson = issuesArray.get(i).getAsJsonObject();
+                JiraIssue issue = parseIssue(issueJson);
+                issues.add(issue);
+            }
+            
+            return issues;
+        }
+    }
+
     public boolean isConfigured() {
         return StringUtils.isNotBlank(baseUrl) && 
                StringUtils.isNotBlank(username) && 

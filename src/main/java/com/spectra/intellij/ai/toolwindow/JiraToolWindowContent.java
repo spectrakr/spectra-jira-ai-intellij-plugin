@@ -3,13 +3,20 @@ package com.spectra.intellij.ai.toolwindow;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.ui.components.JBScrollPane;
+import com.intellij.ui.table.JBTable;
+import com.intellij.util.ui.JBUI;
 import com.spectra.intellij.ai.dialog.CreateIssueDialog;
 import com.spectra.intellij.ai.model.JiraIssue;
+import com.spectra.intellij.ai.model.JiraSprint;
 import com.spectra.intellij.ai.service.JiraService;
 import com.spectra.intellij.ai.settings.JiraSettings;
 
 import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.List;
 
 public class JiraToolWindowContent {
     
@@ -18,7 +25,14 @@ public class JiraToolWindowContent {
     private JLabel statusLabel;
     private JButton createIssueButton;
     private JButton refreshButton;
-    private JTextArea infoArea;
+    private JButton settingsButton;
+    
+    // 3-panel layout components
+    private JList<JiraSprint> sprintList;
+    private DefaultListModel<JiraSprint> sprintListModel;
+    private JBTable issueTable;
+    private DefaultTableModel issueTableModel;
+    private JTextArea issueDetailArea;
     
     public JiraToolWindowContent(Project project) {
         this.project = project;
@@ -28,34 +42,107 @@ public class JiraToolWindowContent {
     private void initializeComponents() {
         contentPanel = new JPanel(new BorderLayout());
         
-        // Top panel with buttons
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        // Top button panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
         
         createIssueButton = new JButton("Create Issue");
         createIssueButton.addActionListener(e -> createIssue());
         buttonPanel.add(createIssueButton);
         
         refreshButton = new JButton("Refresh");
-        refreshButton.addActionListener(e -> refreshStatus());
+        refreshButton.addActionListener(e -> {
+            refreshStatus();
+            loadSprints();
+        });
         buttonPanel.add(refreshButton);
+        
+        settingsButton = new JButton("⚙");
+        settingsButton.setToolTipText("Jira Settings");
+        settingsButton.addActionListener(e -> showSettingsDialog());
+        settingsButton.setPreferredSize(new Dimension(30, settingsButton.getPreferredSize().height));
+        buttonPanel.add(settingsButton);
         
         contentPanel.add(buttonPanel, BorderLayout.NORTH);
         
-        // Status label
+        // Main 3-panel layout
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        
+        // Left panel - Sprint list
+        JPanel sprintPanel = new JPanel(new BorderLayout());
+        sprintPanel.setBorder(BorderFactory.createTitledBorder("Sprints"));
+        sprintPanel.setPreferredSize(new Dimension(200, 0));
+        
+        sprintListModel = new DefaultListModel<>();
+        sprintList = new JList<>(sprintListModel);
+        sprintList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        sprintList.addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                JiraSprint selectedSprint = sprintList.getSelectedValue();
+                if (selectedSprint != null) {
+                    loadSprintIssues(selectedSprint.getId());
+                }
+            }
+        });
+        
+        JBScrollPane sprintScrollPane = new JBScrollPane(sprintList);
+        sprintPanel.add(sprintScrollPane, BorderLayout.CENTER);
+        
+        mainPanel.add(sprintPanel, BorderLayout.WEST);
+        
+        // Center panel - Issue table
+        JPanel issuePanel = new JPanel(new BorderLayout());
+        issuePanel.setBorder(BorderFactory.createTitledBorder("Issues"));
+        
+        issueTableModel = new DefaultTableModel(
+            new String[]{"Key", "Type", "Status", "Priority", "Summary"}, 0
+        ) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        
+        issueTable = new JBTable(issueTableModel);
+        issueTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        issueTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                int selectedRow = issueTable.getSelectedRow();
+                if (selectedRow >= 0) {
+                    String issueKey = (String) issueTableModel.getValueAt(selectedRow, 0);
+                    loadIssueDetail(issueKey);
+                }
+            }
+        });
+        
+        JBScrollPane issueScrollPane = new JBScrollPane(issueTable);
+        issuePanel.add(issueScrollPane, BorderLayout.CENTER);
+        
+        mainPanel.add(issuePanel, BorderLayout.CENTER);
+        
+        // Right panel - Issue detail
+        JPanel detailPanel = new JPanel(new BorderLayout());
+        detailPanel.setBorder(BorderFactory.createTitledBorder("Issue Detail"));
+        detailPanel.setPreferredSize(new Dimension(300, 0));
+        
+        issueDetailArea = new JTextArea();
+        issueDetailArea.setEditable(false);
+        issueDetailArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
+        issueDetailArea.setText("Select an issue to view details");
+        
+        JBScrollPane detailScrollPane = new JBScrollPane(issueDetailArea);
+        detailPanel.add(detailScrollPane, BorderLayout.CENTER);
+        
+        mainPanel.add(detailPanel, BorderLayout.EAST);
+        
+        contentPanel.add(mainPanel, BorderLayout.CENTER);
+        
+        // Bottom status panel
         statusLabel = new JLabel("Ready");
         statusLabel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
         contentPanel.add(statusLabel, BorderLayout.SOUTH);
         
-        // Info area
-        infoArea = new JTextArea();
-        infoArea.setEditable(false);
-        infoArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
-        infoArea.setText("Spectra Jira Plugin\n\nFeatures:\n- Create Jira issues with sprint selection\n\nConfigure your Jira connection in:\nFile > Settings > Tools > Spectra Jira Settings");
-        
-        JBScrollPane scrollPane = new JBScrollPane(infoArea);
-        contentPanel.add(scrollPane, BorderLayout.CENTER);
-        
         refreshStatus();
+        loadSprints();
     }
     
     private void createIssue() {
@@ -90,7 +177,6 @@ public class JiraToolWindowContent {
                     SwingUtilities.invokeLater(() -> {
                         String successMessage = "이슈가 등록되었습니다. (" + createdIssue.getKey() + ")";
                         updateStatus(successMessage);
-                        updateInfoArea("Last created issue: " + createdIssue.getKey() + " - " + createdIssue.getSummary());
                         Messages.showInfoMessage(project, successMessage, "이슈 등록 성공");
                     });
                 })
@@ -124,9 +210,6 @@ public class JiraToolWindowContent {
         statusLabel.setText(status);
     }
     
-    private void updateInfoArea(String info) {
-        infoArea.setText(info);
-    }
     
     private boolean isConfigured() {
         JiraSettings settings = JiraSettings.getInstance();
@@ -151,6 +234,181 @@ public class JiraToolWindowContent {
             jiraService.setProjectKey(settings.getDefaultProjectKey());
         }
         return jiraService;
+    }
+    
+    private void loadSprints() {
+        if (!isConfigured()) {
+            updateStatus("Configure Jira connection using the settings button (⚙).");
+            return;
+        }
+        
+        JiraSettings settings = JiraSettings.getInstance();
+        String boardId = settings.getDefaultBoardId();
+        
+        if (boardId == null || boardId.trim().isEmpty()) {
+            updateStatus("Board ID not configured. Please set Board ID in settings.");
+            return;
+        }
+        
+        updateStatus("Loading sprints from board: " + boardId + "...");
+        
+        JiraService jiraService = getConfiguredJiraService();
+        jiraService.getSprintsAsync(boardId)
+            .thenAccept(sprints -> {
+                SwingUtilities.invokeLater(() -> {
+                    sprintListModel.clear();
+                    for (JiraSprint sprint : sprints) {
+                        sprintListModel.addElement(sprint);
+                    }
+                    updateStatus("Loaded " + sprints.size() + " sprints");
+                });
+            })
+            .exceptionally(throwable -> {
+                SwingUtilities.invokeLater(() -> {
+                    sprintListModel.clear();
+                    updateStatus("Error loading sprints: " + throwable.getMessage());
+                });
+                return null;
+            });
+    }
+    
+    private void loadSprintIssues(String sprintId) {
+        updateStatus("Loading issues from sprint: " + sprintId + "...");
+        
+        JiraService jiraService = getConfiguredJiraService();
+        jiraService.getSprintIssuesAsync(sprintId)
+            .thenAccept(issues -> {
+                SwingUtilities.invokeLater(() -> {
+                    issueTableModel.setRowCount(0);
+                    for (JiraIssue issue : issues) {
+                        issueTableModel.addRow(new Object[]{
+                            issue.getKey(),
+                            issue.getIssueType() != null ? issue.getIssueType() : "",
+                            issue.getStatus() != null ? issue.getStatus() : "",
+                            issue.getPriority() != null ? issue.getPriority() : "",
+                            issue.getSummary() != null ? issue.getSummary() : ""
+                        });
+                    }
+                    updateStatus("Loaded " + issues.size() + " issues from sprint");
+                });
+            })
+            .exceptionally(throwable -> {
+                SwingUtilities.invokeLater(() -> {
+                    issueTableModel.setRowCount(0);
+                    updateStatus("Error loading sprint issues: " + throwable.getMessage());
+                });
+                return null;
+            });
+    }
+    
+    private void loadIssueDetail(String issueKey) {
+        updateStatus("Loading issue details: " + issueKey + "...");
+        
+        // Find the issue from current sprint issues
+        JiraService jiraService = getConfiguredJiraService();
+        // For now, we'll show basic info from the table
+        // In a real implementation, you might want to fetch full issue details
+        
+        SwingUtilities.invokeLater(() -> {
+            int selectedRow = issueTable.getSelectedRow();
+            if (selectedRow >= 0) {
+                StringBuilder detail = new StringBuilder();
+                detail.append("Issue: ").append(issueTableModel.getValueAt(selectedRow, 0)).append("\n");
+                detail.append("Type: ").append(issueTableModel.getValueAt(selectedRow, 1)).append("\n");
+                detail.append("Status: ").append(issueTableModel.getValueAt(selectedRow, 2)).append("\n");
+                detail.append("Priority: ").append(issueTableModel.getValueAt(selectedRow, 3)).append("\n\n");
+                detail.append("Summary:\n").append(issueTableModel.getValueAt(selectedRow, 4));
+                
+                issueDetailArea.setText(detail.toString());
+                updateStatus("Issue details loaded: " + issueKey);
+            }
+        });
+    }
+    
+    private void showSettingsDialog() {
+        JiraSettings settings = JiraSettings.getInstance();
+        
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = JBUI.insets(5);
+        gbc.anchor = GridBagConstraints.WEST;
+        
+        // Jira URL
+        gbc.gridx = 0; gbc.gridy = 0;
+        panel.add(new JLabel("Jira URL:"), gbc);
+        
+        JTextField urlField = new JTextField(settings.getJiraUrl() != null ? settings.getJiraUrl() : "", 30);
+        gbc.gridx = 1; gbc.gridy = 0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(urlField, gbc);
+        
+        // Username
+        gbc.gridx = 0; gbc.gridy = 1;
+        gbc.fill = GridBagConstraints.NONE;
+        panel.add(new JLabel("Username:"), gbc);
+        
+        JTextField userField = new JTextField(settings.getUsername() != null ? settings.getUsername() : "", 30);
+        gbc.gridx = 1; gbc.gridy = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(userField, gbc);
+        
+        // API Token
+        gbc.gridx = 0; gbc.gridy = 2;
+        gbc.fill = GridBagConstraints.NONE;
+        panel.add(new JLabel("API Token:"), gbc);
+        
+        JPasswordField tokenField = new JPasswordField(settings.getApiToken() != null ? settings.getApiToken() : "", 30);
+        gbc.gridx = 1; gbc.gridy = 2;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(tokenField, gbc);
+        
+        // Project ID
+        gbc.gridx = 0; gbc.gridy = 3;
+        gbc.fill = GridBagConstraints.NONE;
+        panel.add(new JLabel("Project ID:"), gbc);
+        
+        JTextField projectIdField = new JTextField(settings.getDefaultProjectKey() != null ? settings.getDefaultProjectKey() : "", 30);
+        gbc.gridx = 1; gbc.gridy = 3;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(projectIdField, gbc);
+        
+        // Board ID
+        gbc.gridx = 0; gbc.gridy = 4;
+        gbc.fill = GridBagConstraints.NONE;
+        panel.add(new JLabel("Board ID:"), gbc);
+        
+        JTextField boardIdField = new JTextField(settings.getDefaultBoardId() != null ? settings.getDefaultBoardId() : "", 30);
+        gbc.gridx = 1; gbc.gridy = 4;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(boardIdField, gbc);
+        
+        // Show dialog
+        int result = JOptionPane.showConfirmDialog(
+            contentPanel,
+            panel,
+            "Jira Settings",
+            JOptionPane.OK_CANCEL_OPTION,
+            JOptionPane.PLAIN_MESSAGE
+        );
+        
+        if (result == JOptionPane.OK_OPTION) {
+            // Save settings
+            settings.setJiraUrl(urlField.getText().trim());
+            settings.setUsername(userField.getText().trim());
+            settings.setApiToken(new String(tokenField.getPassword()).trim());
+            settings.setDefaultProjectKey(projectIdField.getText().trim());
+            settings.setDefaultBoardId(boardIdField.getText().trim());
+            
+            // Refresh status after saving
+            refreshStatus();
+            loadSprints();
+            
+            Messages.showInfoMessage(
+                project,
+                "Jira settings have been saved successfully.",
+                "Settings Saved"
+            );
+        }
     }
     
     public JComponent getContent() {
