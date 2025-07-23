@@ -7,6 +7,7 @@ import com.spectra.intellij.ai.model.JiraIssue;
 import com.spectra.intellij.ai.model.JiraSprint;
 import com.spectra.intellij.ai.service.JiraService;
 import com.spectra.intellij.ai.settings.JiraSettings;
+import com.spectra.intellij.ai.settings.RecentJiraSettings;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
@@ -26,9 +27,6 @@ public class CreateIssueDialog extends DialogWrapper {
     private final Project project;
     private Map<String, String> issueTypesMap; // name -> id mapping
     
-    // Static variables to persist selections across dialog instances
-    private static JiraSprint lastSelectedSprint;
-    private static String lastSelectedIssueType;
     
     public CreateIssueDialog(Project project, JiraService jiraService) {
         super(project);
@@ -70,7 +68,14 @@ public class CreateIssueDialog extends DialogWrapper {
         panel.add(new JLabel("Priority:"), gbc);
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
         priorityComboBox = new JComboBox<>(new String[]{"High", "Medium", "Low", "Highest", "Lowest"});
-        priorityComboBox.setSelectedItem("Medium");
+        // Set default priority from recent settings
+        RecentJiraSettings recentSettings = RecentJiraSettings.getInstance();
+        String lastPriority = recentSettings.getLastUsedPriority();
+        if (!lastPriority.isEmpty()) {
+            priorityComboBox.setSelectedItem(lastPriority);
+        } else {
+            priorityComboBox.setSelectedItem("Medium");
+        }
         panel.add(priorityComboBox, gbc);
         
         // Sprint
@@ -118,12 +123,17 @@ public class CreateIssueDialog extends DialogWrapper {
             if (selectedSprint != null) {
                 issue.setSprintId(selectedSprint.getId());
                 issue.setSprintName(selectedSprint.getName());
-                // Save for next time
-                lastSelectedSprint = selectedSprint;
             }
             
-            // Save selected issue type for next time
-            lastSelectedIssueType = (String) issueTypeComboBox.getSelectedItem();
+            // Save recent values for next time
+            RecentJiraSettings recentSettings = RecentJiraSettings.getInstance();
+            recentSettings.updateRecentValues(
+                (String) priorityComboBox.getSelectedItem(),
+                selectedSprint != null ? selectedSprint.getId() : "",
+                selectedSprint != null ? selectedSprint.getName() : "",
+                issue.getIssueTypeId(),
+                (String) issueTypeComboBox.getSelectedItem()
+            );
             
             super.doOKAction();
         }
@@ -167,11 +177,13 @@ public class CreateIssueDialog extends DialogWrapper {
                             }
                         }
                         
-                        // Restore previous selection
-                        if (lastSelectedSprint != null) {
+                        // Restore recent sprint selection
+                        RecentJiraSettings recentSettings = RecentJiraSettings.getInstance();
+                        String lastSprintId = recentSettings.getLastUsedSprintId();
+                        if (!lastSprintId.isEmpty()) {
                             for (int i = 0; i < sprintComboBox.getItemCount(); i++) {
                                 JiraSprint item = sprintComboBox.getItemAt(i);
-                                if (item.getId().equals(lastSelectedSprint.getId())) {
+                                if (item.getId().equals(lastSprintId)) {
                                     sprintComboBox.setSelectedItem(item);
                                     break;
                                 }
@@ -206,9 +218,11 @@ public class CreateIssueDialog extends DialogWrapper {
                         issueTypeComboBox.addItem(issueTypeName);
                     }
                     
-                    // Restore previous selection
-                    if (lastSelectedIssueType != null && issueTypes.containsKey(lastSelectedIssueType)) {
-                        issueTypeComboBox.setSelectedItem(lastSelectedIssueType);
+                    // Restore recent issue type selection
+                    RecentJiraSettings recentSettings = RecentJiraSettings.getInstance();
+                    String lastIssueType = recentSettings.getLastUsedIssueTypeName();
+                    if (!lastIssueType.isEmpty() && issueTypes.containsKey(lastIssueType)) {
+                        issueTypeComboBox.setSelectedItem(lastIssueType);
                     } else if (currentIssueType != null && issueTypes.containsKey(currentIssueType)) {
                         issueTypeComboBox.setSelectedItem(currentIssueType);
                     } else if (issueTypes.containsKey("Task")) {
@@ -224,9 +238,16 @@ public class CreateIssueDialog extends DialogWrapper {
                     issueTypeComboBox.addItem("Bug");
                     issueTypeComboBox.addItem("Story");
                     
-                    // Restore previous selection for fallback types
-                    if (lastSelectedIssueType != null) {
-                        issueTypeComboBox.setSelectedItem(lastSelectedIssueType);
+                    // Restore recent issue type selection for fallback types
+                    RecentJiraSettings recentSettings = RecentJiraSettings.getInstance();
+                    String lastIssueType = recentSettings.getLastUsedIssueTypeName();
+                    if (!lastIssueType.isEmpty()) {
+                        for (int i = 0; i < issueTypeComboBox.getItemCount(); i++) {
+                            if (issueTypeComboBox.getItemAt(i).equals(lastIssueType)) {
+                                issueTypeComboBox.setSelectedItem(lastIssueType);
+                                break;
+                            }
+                        }
                     } else if (currentIssueType != null) {
                         issueTypeComboBox.setSelectedItem(currentIssueType);
                     } else {

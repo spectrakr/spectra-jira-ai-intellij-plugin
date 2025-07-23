@@ -10,6 +10,7 @@ import com.spectra.intellij.ai.model.JiraIssue;
 import com.spectra.intellij.ai.model.JiraSprint;
 import com.spectra.intellij.ai.service.JiraService;
 import com.spectra.intellij.ai.settings.JiraSettings;
+import com.spectra.intellij.ai.ui.IssueTableCellRenderer;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -32,7 +33,13 @@ public class JiraToolWindowContent {
     private DefaultListModel<JiraSprint> sprintListModel;
     private JBTable issueTable;
     private DefaultTableModel issueTableModel;
+    private DefaultTableModel originalIssueTableModel; // Store unfiltered data
     private JTextArea issueDetailArea;
+    
+    // Filter components
+    private JComboBox<String> issueTypeFilter;
+    private JComboBox<String> assigneeFilter;
+    private JComboBox<String> statusFilter;
     
     public JiraToolWindowContent(Project project) {
         this.project = project;
@@ -42,27 +49,9 @@ public class JiraToolWindowContent {
     private void initializeComponents() {
         contentPanel = new JPanel(new BorderLayout());
         
-        // Top button panel
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
-        
-        createIssueButton = new JButton("Create Issue");
-        createIssueButton.addActionListener(e -> createIssue());
-        buttonPanel.add(createIssueButton);
-        
-        refreshButton = new JButton("Refresh");
-        refreshButton.addActionListener(e -> {
-            refreshStatus();
-            loadSprints();
-        });
-        buttonPanel.add(refreshButton);
-        
-        settingsButton = new JButton("⚙");
-        settingsButton.setToolTipText("Jira Settings");
-        settingsButton.addActionListener(e -> showSettingsDialog());
-        settingsButton.setPreferredSize(new Dimension(30, settingsButton.getPreferredSize().height));
-        buttonPanel.add(settingsButton);
-        
-        contentPanel.add(buttonPanel, BorderLayout.NORTH);
+        // Top panel with filters on left and buttons on right
+        JPanel topPanel = createTopPanel();
+        contentPanel.add(topPanel, BorderLayout.NORTH);
         
         // Main 3-panel layout
         JPanel mainPanel = new JPanel(new BorderLayout());
@@ -94,7 +83,16 @@ public class JiraToolWindowContent {
         issuePanel.setBorder(BorderFactory.createTitledBorder("Issues"));
         
         issueTableModel = new DefaultTableModel(
-            new String[]{"Key", "Type", "Status", "Priority", "Summary"}, 0
+            new String[]{"Key", "Summary", "Status", "Story Points", "Assignee"}, 0
+        ) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        
+        originalIssueTableModel = new DefaultTableModel(
+            new String[]{"Key", "Summary", "Status", "Story Points", "Assignee", "IssueType"}, 0
         ) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -104,6 +102,11 @@ public class JiraToolWindowContent {
         
         issueTable = new JBTable(issueTableModel);
         issueTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        
+        // Set custom renderer for Key column to show icons
+        IssueTableCellRenderer renderer = new IssueTableCellRenderer();
+        issueTable.getColumnModel().getColumn(0).setCellRenderer(renderer); // Key column
+        
         issueTable.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 int selectedRow = issueTable.getSelectedRow();
@@ -143,6 +146,188 @@ public class JiraToolWindowContent {
         
         refreshStatus();
         loadSprints();
+    }
+    
+    private JPanel createTopPanel() {
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        
+        // Left side - Filter panel
+        JPanel filterPanel = createFilterPanel();
+        topPanel.add(filterPanel, BorderLayout.WEST);
+        
+        // Right side - Action buttons
+        JPanel buttonPanel = createButtonPanel();
+        topPanel.add(buttonPanel, BorderLayout.EAST);
+        
+        return topPanel;
+    }
+    
+    private JPanel createFilterPanel() {
+        JPanel filterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        
+        // Issue Type filter
+        filterPanel.add(new JLabel("Type:"));
+        issueTypeFilter = new JComboBox<>();
+        issueTypeFilter.addItem("All");
+        issueTypeFilter.addActionListener(e -> applyFilters());
+        filterPanel.add(issueTypeFilter);
+        
+        // Assignee filter
+        filterPanel.add(new JLabel("Assignee:"));
+        assigneeFilter = new JComboBox<>();
+        assigneeFilter.addItem("All");
+        assigneeFilter.addActionListener(e -> applyFilters());
+        filterPanel.add(assigneeFilter);
+        
+        // Status filter
+        filterPanel.add(new JLabel("Status:"));
+        statusFilter = new JComboBox<>();
+        statusFilter.addItem("All");
+        statusFilter.addActionListener(e -> applyFilters());
+        filterPanel.add(statusFilter);
+        
+        // Clear filters button
+        JButton clearFiltersButton = new JButton("Clear");
+        clearFiltersButton.addActionListener(e -> clearFilters());
+        filterPanel.add(clearFiltersButton);
+        
+        return filterPanel;
+    }
+    
+    private JPanel createButtonPanel() {
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 5));
+        
+        createIssueButton = new JButton("Create Issue");
+        createIssueButton.addActionListener(e -> createIssue());
+        buttonPanel.add(createIssueButton);
+        
+        refreshButton = new JButton("Refresh");
+        refreshButton.addActionListener(e -> {
+            refreshStatus();
+            loadSprints();
+        });
+        buttonPanel.add(refreshButton);
+        
+        settingsButton = new JButton("⚙");
+        settingsButton.setToolTipText("Jira Settings");
+        settingsButton.addActionListener(e -> showSettingsDialog());
+        settingsButton.setPreferredSize(new Dimension(30, settingsButton.getPreferredSize().height));
+        buttonPanel.add(settingsButton);
+        
+        return buttonPanel;
+    }
+    
+    private void applyFilters() {
+        String selectedIssueType = (String) issueTypeFilter.getSelectedItem();
+        String selectedAssignee = (String) assigneeFilter.getSelectedItem();
+        String selectedStatus = (String) statusFilter.getSelectedItem();
+        
+        // Clear current table
+        issueTableModel.setRowCount(0);
+        IssueTableCellRenderer renderer = (IssueTableCellRenderer) issueTable.getColumnModel().getColumn(0).getCellRenderer();
+        
+        int displayRow = 0;
+        for (int i = 0; i < originalIssueTableModel.getRowCount(); i++) {
+            String issueType = (String) originalIssueTableModel.getValueAt(i, 5); // IssueType column
+            String assignee = (String) originalIssueTableModel.getValueAt(i, 4);  // Assignee column
+            String status = (String) originalIssueTableModel.getValueAt(i, 2);    // Status column
+            
+            // Apply filters
+            boolean passesFilter = true;
+            
+            if (!"All".equals(selectedIssueType) && !selectedIssueType.equals(issueType)) {
+                passesFilter = false;
+            }
+            
+            if (!"All".equals(selectedAssignee) && !selectedAssignee.equals(assignee)) {
+                passesFilter = false;
+            }
+            
+            if (!"All".equals(selectedStatus) && !selectedStatus.equals(status)) {
+                passesFilter = false;
+            }
+            
+            if (passesFilter) {
+                // Set issue type for renderer
+                renderer.setIssueTypeForRow(displayRow, issueType);
+                
+                // Add row to display table (exclude IssueType column)
+                issueTableModel.addRow(new Object[]{
+                    originalIssueTableModel.getValueAt(i, 0), // Key
+                    originalIssueTableModel.getValueAt(i, 1), // Summary
+                    originalIssueTableModel.getValueAt(i, 2), // Status
+                    originalIssueTableModel.getValueAt(i, 3), // Story Points
+                    originalIssueTableModel.getValueAt(i, 4)  // Assignee
+                });
+                displayRow++;
+            }
+        }
+        
+        updateStatus("Filtered " + issueTableModel.getRowCount() + " issues");
+    }
+    
+    private void clearFilters() {
+        issueTypeFilter.setSelectedItem("All");
+        assigneeFilter.setSelectedItem("All");
+        statusFilter.setSelectedItem("All");
+        applyFilters();
+    }
+    
+    private void clearFilterOptions() {
+        // Remove all items except "All"
+        issueTypeFilter.removeAllItems();
+        issueTypeFilter.addItem("All");
+        
+        assigneeFilter.removeAllItems();
+        assigneeFilter.addItem("All");
+        
+        statusFilter.removeAllItems();
+        statusFilter.addItem("All");
+    }
+    
+    private void addToFilterOptions(String issueType, String assignee, String status) {
+        // Add issue type to filter if not already present
+        if (!issueType.isEmpty()) {
+            boolean found = false;
+            for (int i = 0; i < issueTypeFilter.getItemCount(); i++) {
+                if (issueType.equals(issueTypeFilter.getItemAt(i))) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                issueTypeFilter.addItem(issueType);
+            }
+        }
+        
+        // Add assignee to filter if not already present
+        if (!assignee.isEmpty()) {
+            boolean found = false;
+            for (int i = 0; i < assigneeFilter.getItemCount(); i++) {
+                if (assignee.equals(assigneeFilter.getItemAt(i))) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                assigneeFilter.addItem(assignee);
+            }
+        }
+        
+        // Add status to filter if not already present
+        if (!status.isEmpty()) {
+            boolean found = false;
+            for (int i = 0; i < statusFilter.getItemCount(); i++) {
+                if (status.equals(statusFilter.getItemAt(i))) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                statusFilter.addItem(status);
+            }
+        }
     }
     
     private void createIssue() {
@@ -279,15 +464,53 @@ public class JiraToolWindowContent {
         jiraService.getSprintIssuesAsync(sprintId)
             .thenAccept(issues -> {
                 SwingUtilities.invokeLater(() -> {
+                    // Clear both tables
                     issueTableModel.setRowCount(0);
+                    originalIssueTableModel.setRowCount(0);
+                    
+                    // Clear filter options
+                    clearFilterOptions();
+                    
+                    IssueTableCellRenderer renderer = (IssueTableCellRenderer) issueTable.getColumnModel().getColumn(0).getCellRenderer();
+                    
+                    int row = 0;
                     for (JiraIssue issue : issues) {
+                        String storyPointsStr = "";
+                        if (issue.getStoryPoints() != null) {
+                            storyPointsStr = issue.getStoryPoints().toString();
+                        }
+                        
+                        String issueType = issue.getIssueType() != null ? issue.getIssueType() : "";
+                        String assignee = issue.getAssignee() != null ? issue.getAssignee() : "";
+                        String status = issue.getStatus() != null ? issue.getStatus() : "";
+                        String summary = issue.getSummary() != null ? issue.getSummary() : "";
+                        
+                        // Add to original data model (includes IssueType column)
+                        originalIssueTableModel.addRow(new Object[]{
+                            issue.getKey(),
+                            summary,
+                            status,
+                            storyPointsStr,
+                            assignee,
+                            issueType // Hidden column for filtering
+                        });
+                        
+                        // Set issue type for renderer
+                        renderer.setIssueTypeForRow(row, issueType);
+                        
+                        // Add to display table
                         issueTableModel.addRow(new Object[]{
                             issue.getKey(),
-                            issue.getIssueType() != null ? issue.getIssueType() : "",
-                            issue.getStatus() != null ? issue.getStatus() : "",
-                            issue.getPriority() != null ? issue.getPriority() : "",
-                            issue.getSummary() != null ? issue.getSummary() : ""
+                            summary,
+                            status,
+                            storyPointsStr,
+                            assignee
                         });
+                        
+                        // Populate filter options
+                        addToFilterOptions(issueType, assignee, status);
+                        
+                        row++;
                     }
                     updateStatus("Loaded " + issues.size() + " issues from sprint");
                 });
@@ -314,10 +537,10 @@ public class JiraToolWindowContent {
             if (selectedRow >= 0) {
                 StringBuilder detail = new StringBuilder();
                 detail.append("Issue: ").append(issueTableModel.getValueAt(selectedRow, 0)).append("\n");
-                detail.append("Type: ").append(issueTableModel.getValueAt(selectedRow, 1)).append("\n");
+                detail.append("Summary: ").append(issueTableModel.getValueAt(selectedRow, 1)).append("\n");
                 detail.append("Status: ").append(issueTableModel.getValueAt(selectedRow, 2)).append("\n");
-                detail.append("Priority: ").append(issueTableModel.getValueAt(selectedRow, 3)).append("\n\n");
-                detail.append("Summary:\n").append(issueTableModel.getValueAt(selectedRow, 4));
+                detail.append("Story Points: ").append(issueTableModel.getValueAt(selectedRow, 3)).append("\n");
+                detail.append("Assignee: ").append(issueTableModel.getValueAt(selectedRow, 4)).append("\n");
                 
                 issueDetailArea.setText(detail.toString());
                 updateStatus("Issue details loaded: " + issueKey);

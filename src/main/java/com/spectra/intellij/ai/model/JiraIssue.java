@@ -12,6 +12,7 @@ public class JiraIssue {
     private String issueTypeId;
     private String sprintId;
     private String sprintName;
+    private Double storyPoints;
 
     public JiraIssue() {}
 
@@ -107,6 +108,14 @@ public class JiraIssue {
 
     public void setSprintName(String sprintName) {
         this.sprintName = sprintName;
+    }
+
+    public Double getStoryPoints() {
+        return storyPoints;
+    }
+
+    public void setStoryPoints(Double storyPoints) {
+        this.storyPoints = storyPoints;
     }
 
     @Override
