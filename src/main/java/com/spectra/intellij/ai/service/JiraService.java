@@ -705,7 +705,7 @@ public class JiraService {
     }
 
     public List<String> getProjectUsers(String projectKey) throws IOException {
-        String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/user/assignable/search?project=" + projectKey + "&maxResults=100";
+        String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/user/assignable/search?project=" + projectKey + "&maxResults=300";
         logRequest("GET", url);
         Request request = buildRequest(url);
         
@@ -861,6 +861,194 @@ public class JiraService {
                         throw new IOException("Failed to transition issue: " + transitionResponse.code() + " - " + errorBody);
                     }
                 }
+            }
+        }
+    }
+
+    // Individual field update methods
+    public CompletableFuture<Void> updateIssueSummaryAsync(String issueKey, String summary) {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                updateIssueSummary(issueKey, summary);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to update issue summary", e);
+            }
+        });
+    }
+
+    public void updateIssueSummary(String issueKey, String summary) throws IOException {
+        String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/issue/" + issueKey;
+        
+        JsonObject updatePayload = new JsonObject();
+        JsonObject fields = new JsonObject();
+        
+        fields.addProperty("summary", summary);
+        updatePayload.add("fields", fields);
+        
+        RequestBody body = RequestBody.create(
+            gson.toJson(updatePayload),
+            MediaType.parse("application/json")
+        );
+
+        logRequest("PUT", url, gson.toJson(updatePayload));
+
+        Request request = buildRequest(url).newBuilder()
+            .put(body)
+            .build();
+        
+        try (Response response = client.newCall(request).execute()) {
+            String responseBody = response.body() != null ? response.body().string() : "";
+
+            if (!response.isSuccessful()) {
+                throw new IOException("Failed to update issue summary: " + response.code() + " - " + responseBody);
+            }
+        }
+    }
+
+    public CompletableFuture<Void> updateIssueDescriptionAsync(String issueKey, String description) {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                updateIssueDescription(issueKey, description);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to update issue description", e);
+            }
+        });
+    }
+
+    public void updateIssueDescription(String issueKey, String description) throws IOException {
+        String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/issue/" + issueKey;
+        
+        JsonObject updatePayload = new JsonObject();
+        JsonObject fields = new JsonObject();
+        
+        if (StringUtils.isNotBlank(description)) {
+            JsonObject descriptionADF = createADFDescription(description);
+            fields.add("description", descriptionADF);
+        } else {
+            // Clear description
+            fields.add("description", null);
+        }
+        
+        updatePayload.add("fields", fields);
+        
+        RequestBody body = RequestBody.create(
+            gson.toJson(updatePayload),
+            MediaType.parse("application/json")
+        );
+
+        logRequest("PUT", url, gson.toJson(updatePayload));
+
+        Request request = buildRequest(url).newBuilder()
+            .put(body)
+            .build();
+        
+        try (Response response = client.newCall(request).execute()) {
+            String responseBody = response.body() != null ? response.body().string() : "";
+
+            if (!response.isSuccessful()) {
+                throw new IOException("Failed to update issue description: " + response.code() + " - " + responseBody);
+            }
+        }
+    }
+
+    public CompletableFuture<Void> updateIssueStoryPointsAsync(String issueKey, Double storyPoints) {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                updateIssueStoryPoints(issueKey, storyPoints);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to update issue story points", e);
+            }
+        });
+    }
+
+    public void updateIssueStoryPoints(String issueKey, Double storyPoints) throws IOException {
+        String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/issue/" + issueKey;
+        
+        JsonObject updatePayload = new JsonObject();
+        JsonObject fields = new JsonObject();
+        
+        if (storyPoints != null) {
+            fields.addProperty("customfield_10105", storyPoints);
+        } else {
+            // Clear story points
+            fields.add("customfield_10105", null);
+        }
+        
+        updatePayload.add("fields", fields);
+        
+        RequestBody body = RequestBody.create(
+            gson.toJson(updatePayload),
+            MediaType.parse("application/json")
+        );
+
+        logRequest("PUT", url, gson.toJson(updatePayload));
+
+        Request request = buildRequest(url).newBuilder()
+            .put(body)
+            .build();
+        
+        try (Response response = client.newCall(request).execute()) {
+            String responseBody = response.body() != null ? response.body().string() : "";
+
+            if (!response.isSuccessful()) {
+                throw new IOException("Failed to update issue story points: " + response.code() + " - " + responseBody);
+            }
+        }
+    }
+
+    public CompletableFuture<Void> updateIssueStatusAsync(String issueKey, String status) {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                updateIssueStatus(issueKey, status);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to update issue status", e);
+            }
+        });
+    }
+
+    public CompletableFuture<Void> updateIssueAssigneeAsync(String issueKey, String assigneeAccountId) {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                updateIssueAssignee(issueKey, assigneeAccountId);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to update issue assignee", e);
+            }
+        });
+    }
+
+    public void updateIssueAssignee(String issueKey, String assigneeAccountId) throws IOException {
+        String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/issue/" + issueKey;
+        
+        JsonObject updatePayload = new JsonObject();
+        JsonObject fields = new JsonObject();
+        
+        if (assigneeAccountId != null && !assigneeAccountId.isEmpty()) {
+            JsonObject assignee = new JsonObject();
+            assignee.addProperty("accountId", assigneeAccountId);
+            fields.add("assignee", assignee);
+        } else {
+            // Unassign by setting assignee to null
+            fields.add("assignee", null);
+        }
+        
+        updatePayload.add("fields", fields);
+        
+        RequestBody body = RequestBody.create(
+            gson.toJson(updatePayload),
+            MediaType.parse("application/json")
+        );
+
+        logRequest("PUT", url, gson.toJson(updatePayload));
+
+        Request request = buildRequest(url).newBuilder()
+            .put(body)
+            .build();
+        
+        try (Response response = client.newCall(request).execute()) {
+            String responseBody = response.body() != null ? response.body().string() : "";
+
+            if (!response.isSuccessful()) {
+                throw new IOException("Failed to update issue assignee: " + response.code() + " - " + responseBody);
             }
         }
     }

@@ -575,9 +575,9 @@ public class JiraIssueDetailDialog extends DialogWrapper {
                 public void mouseEntered(MouseEvent e) {
                     System.out.println("___ InlineEditableField mouseEntered, isEditing: " + isEditing);
                     if (!isEditing) {
-                        displayLabel.setBackground(new Color(240, 245, 255)); // Light blue hover
+                        displayLabel.setBackground(new Color(245, 245, 245)); // Light gray hover
                         displayLabel.setBorder(BorderFactory.createCompoundBorder(
-                            BorderFactory.createLineBorder(new Color(200, 220, 255), 1),
+                            BorderFactory.createLineBorder(new Color(200, 200, 200), 1),
                             BorderFactory.createEmptyBorder(3, 5, 3, 5)
                         ));
                         setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));

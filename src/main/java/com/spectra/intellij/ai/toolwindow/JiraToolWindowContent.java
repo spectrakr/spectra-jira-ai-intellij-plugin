@@ -54,16 +54,18 @@ public class JiraToolWindowContent {
     private JComboBox<String> issueStatusComboBox;
     private boolean isStatusEditing = false;
     private String originalStatusValue = "";
-    private JTextField issueDescriptionField;
-    private JComboBox<String> assigneeComboBox;
+    private JTextArea issueDescriptionField;
+    private JLabel assigneeLabel;
     private JLabel reporterLabel;
     private JTextField storyPointsField;
     private boolean isStoryPointsEditing = false;
     private String originalStoryPointsValue = "";
     private boolean isDescriptionEditing = false;
     private String originalDescriptionValue = "";
-    private JButton saveIssueButton;
-    private JButton cancelIssueButton;
+    private JPanel descriptionButtonPanel;
+    private JButton saveDescriptionButton;
+    private JButton cancelDescriptionButton;
+    // Removed saveIssueButton and cancelIssueButton - using inline editing instead
     private JiraIssue currentEditingIssue;
     
     // Filter components
@@ -71,14 +73,7 @@ public class JiraToolWindowContent {
     private JComboBox<String> assigneeFilter;
     private JComboBox<String> statusFilter;
     
-    // Cache for all project users for autocomplete
-    private List<String> allProjectUsers = new ArrayList<>();
-    private boolean isUpdatingAssigneeComboBox = false;
-    private boolean isHandlingAssigneeSelection = false;
-    
     private JsonObject currentUser;
-    private String selectedAssigneeAccountId;
-    private String selectedAssigneeDisplayName;
     
     public JiraToolWindowContent(Project project) {
         this.project = project;
@@ -365,10 +360,35 @@ public class JiraToolWindowContent {
         formPanel.add(issueStatusComboBox, gbc);
         
         // Description (no label) - with inline edit capability
-        gbc.gridx = 0; gbc.gridy = 3; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0; gbc.weighty = 0; gbc.gridwidth = 2;
-        issueDescriptionField = new JTextField();
+        gbc.gridx = 0; gbc.gridy = 3; gbc.fill = GridBagConstraints.BOTH; gbc.weightx = 1.0; gbc.weighty = 0.3; gbc.gridwidth = 2;
+        
+        // Create description panel container
+        JPanel descriptionPanel = new JPanel(new BorderLayout());
+        
+        issueDescriptionField = new JTextArea();
+        issueDescriptionField.setLineWrap(true);
+        issueDescriptionField.setWrapStyleWord(true);
+        issueDescriptionField.setRows(4);
         setupInlineEditForDescription();
-        formPanel.add(issueDescriptionField, gbc);
+        JScrollPane descriptionScrollPane = new JScrollPane(issueDescriptionField);
+        descriptionScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        descriptionScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        descriptionPanel.add(descriptionScrollPane, BorderLayout.CENTER);
+        
+        // Create button panel for description editing (initially hidden)
+        descriptionButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 5));
+        saveDescriptionButton = new JButton("Save");
+        cancelDescriptionButton = new JButton("Cancel");
+        
+        saveDescriptionButton.addActionListener(e -> saveDescriptionAndExit());
+        cancelDescriptionButton.addActionListener(e -> cancelDescriptionEditing());
+        
+        descriptionButtonPanel.add(saveDescriptionButton);
+        descriptionButtonPanel.add(cancelDescriptionButton);
+        descriptionButtonPanel.setVisible(false); // Initially hidden
+        
+        descriptionPanel.add(descriptionButtonPanel, BorderLayout.SOUTH);
+        formPanel.add(descriptionPanel, gbc);
         
         // 세부사항 영역
         gbc.gridx = 0; gbc.gridy = 4; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0; gbc.weighty = 0; gbc.gridwidth = 2;
@@ -384,15 +404,14 @@ public class JiraToolWindowContent {
         detailsPanel.add(new JLabel("담당자:"), detailGbc);
         detailGbc.gridx = 1; detailGbc.fill = GridBagConstraints.HORIZONTAL; detailGbc.weightx = 1.0;
         
-        // Create simple assignee dropdown
-        assigneeComboBox = new JComboBox<>();
-        // Initialize with default items before adding action listener
-        assigneeComboBox.addItem("Select");
-        assigneeComboBox.addItem("me");
-        assigneeComboBox.setSelectedItem("me");
-        // Add action listener after initialization
-        assigneeComboBox.addActionListener(e -> handleAssigneeSelection());
-        detailsPanel.add(assigneeComboBox, detailGbc);
+        // Create assignee label with click functionality
+        assigneeLabel = new JLabel("할당되지 않음");
+        assigneeLabel.setOpaque(true);
+        assigneeLabel.setBackground(UIManager.getColor("Label.background"));
+        assigneeLabel.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
+        assigneeLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        setupAssigneeLabelHandlers();
+        detailsPanel.add(assigneeLabel, detailGbc);
         
         // 보고자
         detailGbc.gridx = 0; detailGbc.gridy = 1; detailGbc.fill = GridBagConstraints.NONE; detailGbc.weightx = 0;
@@ -413,22 +432,7 @@ public class JiraToolWindowContent {
         formPanel.add(detailsPanel, gbc);
         
         detailPanel.add(formPanel, BorderLayout.CENTER);
-        
-        // Button panel
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 5));
-        
-        saveIssueButton = new JButton("Save");
-        saveIssueButton.addActionListener(e -> saveCurrentIssue());
-        saveIssueButton.setEnabled(false);
-        buttonPanel.add(saveIssueButton);
-        
-        cancelIssueButton = new JButton("Cancel");
-        cancelIssueButton.addActionListener(e -> cancelIssueEditing());
-        cancelIssueButton.setEnabled(false);
-        buttonPanel.add(cancelIssueButton);
-        
-        detailPanel.add(buttonPanel, BorderLayout.SOUTH);
-        
+
         // Initially show "Select an issue" message
         clearIssueDetail();
         
@@ -445,6 +449,31 @@ public class JiraToolWindowContent {
             public void mouseClicked(MouseEvent e) {
                 if (currentEditingIssue != null && issueSummaryField.isEnabled()) {
                     enterSummaryEditMode();
+                }
+            }
+            
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                if (currentEditingIssue != null && issueSummaryField.isEnabled() && !isSummaryEditing) {
+                    Color currentBg = UIManager.getColor("Panel.background");
+                    if (currentBg != null) {
+                        // Make it slightly brighter by adding 15 to each RGB component
+                        int r = Math.min(255, currentBg.getRed() + 15);
+                        int g = Math.min(255, currentBg.getGreen() + 15);
+                        int b = Math.min(255, currentBg.getBlue() + 15);
+                        issueSummaryField.setBackground(new Color(r, g, b));
+                    } else {
+                        issueSummaryField.setBackground(new Color(245, 245, 245)); // Fallback
+                    }
+                    issueSummaryField.repaint();
+                }
+            }
+            
+            @Override
+            public void mouseExited(MouseEvent e) {
+                if (currentEditingIssue != null && issueSummaryField.isEnabled() && !isSummaryEditing) {
+                    issueSummaryField.setBackground(UIManager.getColor("Panel.background"));
+                    issueSummaryField.repaint();
                 }
             }
         });
@@ -498,7 +527,7 @@ public class JiraToolWindowContent {
         issueSummaryField.setBackground(UIManager.getColor("TextField.background"));
         issueSummaryField.setCursor(Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR));
         issueSummaryField.requestFocus();
-        issueSummaryField.selectAll();
+        issueSummaryField.setCaretPosition(issueSummaryField.getText().length());
     }
     
     private void exitSummaryEditMode(boolean saveChanges) {
@@ -527,14 +556,9 @@ public class JiraToolWindowContent {
         updateStatus("Saving summary change...");
         
         JiraService jiraService = getConfiguredJiraService();
-        jiraService.updateIssueAsync(currentEditingIssue)
+        jiraService.updateIssueSummaryAsync(currentEditingIssue.getKey(), newSummary)
             .thenRun(() -> {
                 SwingUtilities.invokeLater(() -> {
-                    // Refresh the current sprint issues to show updated data
-                    JiraSprint selectedSprint = sprintList.getSelectedValue();
-                    if (selectedSprint != null) {
-                        loadSprintIssues(selectedSprint.getId());
-                    }
                     updateStatus("Summary updated successfully for " + currentEditingIssue.getKey());
                 });
             })
@@ -562,6 +586,31 @@ public class JiraToolWindowContent {
                     enterDescriptionEditMode();
                 }
             }
+            
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                if (currentEditingIssue != null && issueDescriptionField.isEnabled() && !isDescriptionEditing) {
+                    Color currentBg = UIManager.getColor("Panel.background");
+                    if (currentBg != null) {
+                        // Make it slightly brighter by adding 15 to each RGB component
+                        int r = Math.min(255, currentBg.getRed() + 15);
+                        int g = Math.min(255, currentBg.getGreen() + 15);
+                        int b = Math.min(255, currentBg.getBlue() + 15);
+                        issueDescriptionField.setBackground(new Color(r, g, b));
+                    } else {
+                        issueDescriptionField.setBackground(new Color(245, 245, 245)); // Fallback
+                    }
+                    issueDescriptionField.repaint();
+                }
+            }
+            
+            @Override
+            public void mouseExited(MouseEvent e) {
+                if (currentEditingIssue != null && issueDescriptionField.isEnabled() && !isDescriptionEditing) {
+                    issueDescriptionField.setBackground(UIManager.getColor("Panel.background"));
+                    issueDescriptionField.repaint();
+                }
+            }
         });
         
         // Add key listener for Enter key and Escape key
@@ -571,10 +620,10 @@ public class JiraToolWindowContent {
             
             @Override
             public void keyPressed(KeyEvent e) {
-                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                    exitDescriptionEditMode(true); // Save changes
+                if (e.getKeyCode() == KeyEvent.VK_ENTER && e.isControlDown()) {
+                    saveDescriptionAndExit(); // Save changes with Ctrl+Enter
                 } else if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
-                    exitDescriptionEditMode(false); // Cancel changes
+                    cancelDescriptionEditing(); // Cancel changes
                 }
             }
             
@@ -582,13 +631,11 @@ public class JiraToolWindowContent {
             public void keyReleased(KeyEvent e) {}
         });
         
-        // Add focus listener to save changes when focus is lost
+        // Add focus listener (no auto-save on focus loss for description)
         issueDescriptionField.addFocusListener(new FocusAdapter() {
             @Override
             public void focusLost(FocusEvent e) {
-                if (isDescriptionEditing) {
-                    exitDescriptionEditMode(true); // Save changes when focus is lost
-                }
+                // Do not auto-save for description - user must use Save/Cancel buttons
             }
         });
     }
@@ -596,10 +643,12 @@ public class JiraToolWindowContent {
     private void setDescriptionDisplayMode() {
         isDescriptionEditing = false;
         issueDescriptionField.setEditable(false);
-        issueDescriptionField.setFocusable(false); // Prevent focus
-        issueDescriptionField.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
-        issueDescriptionField.setBackground(UIManager.getColor("Panel.background"));
+        issueDescriptionField.setFocusable(true); // Keep focusable to show cursor on hover
+        issueDescriptionField.setBackground(UIManager.getColor("TextArea.background"));
         issueDescriptionField.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        if (descriptionButtonPanel != null) {
+            descriptionButtonPanel.setVisible(false);
+        }
     }
     
     private void enterDescriptionEditMode() {
@@ -608,12 +657,19 @@ public class JiraToolWindowContent {
         isDescriptionEditing = true;
         originalDescriptionValue = issueDescriptionField.getText();
         issueDescriptionField.setEditable(true);
-        issueDescriptionField.setFocusable(true); // Re-enable focus for editing
-        issueDescriptionField.setBorder(UIManager.getBorder("TextField.border"));
-        issueDescriptionField.setBackground(UIManager.getColor("TextField.background"));
+        issueDescriptionField.setFocusable(true);
+        issueDescriptionField.setBackground(UIManager.getColor("TextArea.background"));
         issueDescriptionField.setCursor(Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR));
-        issueDescriptionField.requestFocus();
-        issueDescriptionField.selectAll();
+        
+        // Do not automatically focus or set caret position
+        // Let user click where they want the cursor to be
+        
+        // Show save/cancel buttons
+        if (descriptionButtonPanel != null) {
+            descriptionButtonPanel.setVisible(true);
+            descriptionButtonPanel.revalidate();
+            descriptionButtonPanel.repaint();
+        }
     }
     
     private void exitDescriptionEditMode(boolean saveChanges) {
@@ -633,6 +689,27 @@ public class JiraToolWindowContent {
         setDescriptionDisplayMode();
     }
     
+    private void saveDescriptionAndExit() {
+        if (!isDescriptionEditing) return;
+        
+        String newDescription = issueDescriptionField.getText().trim();
+        if (!newDescription.equals(originalDescriptionValue)) {
+            // Save the changes immediately
+            saveDescriptionChange(newDescription);
+        } else {
+            // No changes, just exit edit mode
+            setDescriptionDisplayMode();
+        }
+    }
+    
+    private void cancelDescriptionEditing() {
+        if (!isDescriptionEditing) return;
+        
+        // Restore original value
+        issueDescriptionField.setText(originalDescriptionValue);
+        setDescriptionDisplayMode();
+    }
+    
     private void saveDescriptionChange(String newDescription) {
         if (currentEditingIssue == null) return;
         
@@ -642,14 +719,11 @@ public class JiraToolWindowContent {
         updateStatus("Saving description change...");
         
         JiraService jiraService = getConfiguredJiraService();
-        jiraService.updateIssueAsync(currentEditingIssue)
+        jiraService.updateIssueDescriptionAsync(currentEditingIssue.getKey(), newDescription)
             .thenRun(() -> {
                 SwingUtilities.invokeLater(() -> {
-                    // Refresh the current sprint issues to show updated data
-                    JiraSprint selectedSprint = sprintList.getSelectedValue();
-                    if (selectedSprint != null) {
-                        loadSprintIssues(selectedSprint.getId());
-                    }
+                    // Exit edit mode
+                    setDescriptionDisplayMode();
                     updateStatus("Description updated successfully for " + currentEditingIssue.getKey());
                 });
             })
@@ -765,14 +839,9 @@ public class JiraToolWindowContent {
         updateStatus("Saving story points change...");
         
         JiraService jiraService = getConfiguredJiraService();
-        jiraService.updateIssueAsync(currentEditingIssue)
+        jiraService.updateIssueStoryPointsAsync(currentEditingIssue.getKey(), newStoryPointsValue)
             .thenRun(() -> {
                 SwingUtilities.invokeLater(() -> {
-                    // Refresh the current sprint issues to show updated data
-                    JiraSprint selectedSprint = sprintList.getSelectedValue();
-                    if (selectedSprint != null) {
-                        loadSprintIssues(selectedSprint.getId());
-                    }
                     updateStatus("Story points updated successfully for " + currentEditingIssue.getKey());
                 });
             })
@@ -811,16 +880,11 @@ public class JiraToolWindowContent {
         updateStatus("Saving status change...");
         
         JiraService jiraService = getConfiguredJiraService();
-        jiraService.updateIssueAsync(currentEditingIssue)
+        jiraService.updateIssueStatusAsync(currentEditingIssue.getKey(), newStatus)
             .thenRun(() -> {
                 SwingUtilities.invokeLater(() -> {
                     isStatusEditing = false;
                     originalStatusValue = newStatus; // Update original value
-                    // Refresh the current sprint issues to show updated data
-                    JiraSprint selectedSprint = sprintList.getSelectedValue();
-                    if (selectedSprint != null) {
-                        loadSprintIssues(selectedSprint.getId());
-                    }
                     updateStatus("Status updated successfully for " + currentEditingIssue.getKey());
                 });
             })
@@ -1080,6 +1144,10 @@ public class JiraToolWindowContent {
     }
     
     private void loadSprintIssues(String sprintId) {
+        loadSprintIssues(sprintId, null);
+    }
+    
+    private void loadSprintIssues(String sprintId, String preserveSelectedIssueKey) {
         updateStatus("Loading issues from sprint: " + sprintId + "...");
         
         JiraService jiraService = getConfiguredJiraService();
@@ -1089,7 +1157,11 @@ public class JiraToolWindowContent {
                     // Clear both tables
                     issueTableModel.setRowCount(0);
                     originalIssueTableModel.setRowCount(0);
-                    clearIssueDetail();
+                    
+                    // Only clear issue detail if we're not preserving selection
+                    if (preserveSelectedIssueKey == null) {
+                        clearIssueDetail();
+                    }
                     
                     // Clear filter options
                     clearFilterOptions();
@@ -1097,6 +1169,7 @@ public class JiraToolWindowContent {
                     IssueTableCellRenderer renderer = (IssueTableCellRenderer) issueTable.getColumnModel().getColumn(0).getCellRenderer();
                     
                     int row = 0;
+                    int selectedRowIndex = -1;
                     for (JiraIssue issue : issues) {
                         String storyPointsStr = "";
                         if (issue.getStoryPoints() != null) {
@@ -1107,6 +1180,11 @@ public class JiraToolWindowContent {
                         String assignee = issue.getAssignee() != null ? issue.getAssignee() : "";
                         String status = issue.getStatus() != null ? issue.getStatus() : "";
                         String summary = issue.getSummary() != null ? issue.getSummary() : "";
+                        
+                        // Check if this is the issue we want to preserve selection for
+                        if (preserveSelectedIssueKey != null && issue.getKey().equals(preserveSelectedIssueKey)) {
+                            selectedRowIndex = row;
+                        }
                         
                         // Add to original data model (includes IssueType column)
                         originalIssueTableModel.addRow(new Object[]{
@@ -1135,13 +1213,23 @@ public class JiraToolWindowContent {
                         
                         row++;
                     }
+                    
+                    // Restore selection if requested
+                    if (preserveSelectedIssueKey != null && selectedRowIndex >= 0) {
+                        issueTable.setRowSelectionInterval(selectedRowIndex, selectedRowIndex);
+                        // Ensure the selected row is visible
+                        issueTable.scrollRectToVisible(issueTable.getCellRect(selectedRowIndex, 0, true));
+                    }
+                    
                     updateStatus("Loaded " + issues.size() + " issues from sprint");
                 });
             })
             .exceptionally(throwable -> {
                 SwingUtilities.invokeLater(() -> {
                     issueTableModel.setRowCount(0);
-                    clearIssueDetail();
+                    if (preserveSelectedIssueKey == null) {
+                        clearIssueDetail();
+                    }
                     updateStatus("Error loading sprint issues: " + throwable.getMessage());
                 });
                 return null;
@@ -1234,8 +1322,12 @@ public class JiraToolWindowContent {
         issueDescriptionField.setText(issue.getDescription() != null ? issue.getDescription() : "");
         
         // Populate detail fields
-        // Initialize assignee selection based on current issue assignee
-        initializeAssigneeDropdown(issue.getAssignee());
+        // Initialize assignee label based on current issue assignee
+        if (issue.getAssignee() != null && !issue.getAssignee().trim().isEmpty()) {
+            assigneeLabel.setText(issue.getAssignee());
+        } else {
+            assigneeLabel.setText("할당되지 않음");
+        }
         reporterLabel.setText(issue.getReporter() != null ? issue.getReporter() : "없음");
         storyPointsField.setText(issue.getStoryPoints() != null ? issue.getStoryPoints().toString() : "");
         
@@ -1249,73 +1341,12 @@ public class JiraToolWindowContent {
         issueDescriptionField.setEnabled(true);
         setDescriptionDisplayMode(); // Set to display mode for inline editing
         
-        assigneeComboBox.setEnabled(true);
+        assigneeLabel.setEnabled(true);
         
         storyPointsField.setEnabled(true);
         setStoryPointsDisplayMode(); // Set to display mode for inline editing
-        
-        saveIssueButton.setEnabled(true);
-        cancelIssueButton.setEnabled(true);
     }
     
-    private void initializeAssigneeDropdown(String currentAssignee) {
-        // Temporarily disable the action listener to prevent triggering dialog
-        isHandlingAssigneeSelection = true;
-        try {
-            // Clear combo box and add default options
-            assigneeComboBox.removeAllItems();
-            assigneeComboBox.addItem("Select");
-            assigneeComboBox.addItem("me");
-            
-            if (currentAssignee != null && !currentAssignee.trim().isEmpty()) {
-                selectedAssigneeDisplayName = currentAssignee;
-                
-                // Check if current assignee is the logged-in user
-                if (currentUser != null && currentAssignee.equals(currentUser.get("displayName").getAsString())) {
-                    assigneeComboBox.setSelectedItem("me");
-                    selectedAssigneeAccountId = currentUser.get("accountId").getAsString();
-                } else {
-                    // Add current assignee to dropdown and select it
-                    assigneeComboBox.addItem(currentAssignee);
-                    assigneeComboBox.setSelectedItem(currentAssignee);
-                    
-                    // Find the account ID for the current assignee
-                    findAccountIdForSelectedUser(currentAssignee);
-                }
-            } else {
-                // No current assignee - set to "me" instead of "Select" to avoid dialog
-                assigneeComboBox.setSelectedItem("me");
-                setAssigneeToCurrentUser();
-            }
-        } finally {
-            isHandlingAssigneeSelection = false;
-        }
-    }
-    
-    private void findAccountIdForSelectedUser(String displayName) {
-        if (!isConfigured()) {
-            return;
-        }
-        
-        JiraService jiraService = getConfiguredJiraService();
-        jiraService.searchUsersAsync(displayName)
-            .thenAccept(users -> {
-                SwingUtilities.invokeLater(() -> {
-                    for (JsonObject user : users) {
-                        if (user.has("displayName") && displayName.equals(user.get("displayName").getAsString())) {
-                            selectedAssigneeAccountId = user.get("accountId").getAsString();
-                            break;
-                        }
-                    }
-                });
-            })
-            .exceptionally(throwable -> {
-                SwingUtilities.invokeLater(() -> {
-                    System.err.println("Failed to find account ID for user: " + throwable.getMessage());
-                });
-                return null;
-            });
-    }
     
     private void clearIssueDetail() {
         currentEditingIssue = null;
@@ -1324,17 +1355,8 @@ public class JiraToolWindowContent {
         issueDescriptionField.setText("");
         issueStatusComboBox.removeAllItems();
         
-        // Clear detail fields - temporarily disable action listener
-        isHandlingAssigneeSelection = true;
-        try {
-            assigneeComboBox.removeAllItems();
-            assigneeComboBox.addItem("Select");
-            assigneeComboBox.addItem("me");
-            assigneeComboBox.setSelectedItem("me"); // Default to "me" instead of "Select"
-            setAssigneeToCurrentUser();
-        } finally {
-            isHandlingAssigneeSelection = false;
-        }
+        // Clear detail fields
+        assigneeLabel.setText("할당되지 않음");
         reporterLabel.setText("");
         storyPointsField.setText("");
         
@@ -1348,269 +1370,388 @@ public class JiraToolWindowContent {
         issueDescriptionField.setEnabled(false);
         setDescriptionDisplayMode(); // Ensure proper display mode when disabled
         
-        assigneeComboBox.setEnabled(false);
+        assigneeLabel.setEnabled(false);
         
         storyPointsField.setEnabled(false);
         setStoryPointsDisplayMode(); // Ensure proper display mode when disabled
         
-        saveIssueButton.setEnabled(false);
-        cancelIssueButton.setEnabled(false);
+        assigneeLabel.setEnabled(false);
     }
     
-    private void saveCurrentIssue() {
-        if (currentEditingIssue == null) {
-            return;
-        }
-        
-        // Check if anything was modified
-        boolean summaryChanged = !issueSummaryField.getText().trim().equals(currentEditingIssue.getSummary() != null ? currentEditingIssue.getSummary() : "");
-        boolean statusChanged = !issueStatusComboBox.getSelectedItem().toString().equals(currentEditingIssue.getStatus() != null ? currentEditingIssue.getStatus() : "");
-        boolean descriptionChanged = !issueDescriptionField.getText().trim().equals(currentEditingIssue.getDescription() != null ? currentEditingIssue.getDescription() : "");
-        
-        // Check assignee changes
-        String newAssignee = selectedAssigneeDisplayName != null ? selectedAssigneeDisplayName : "";
-        String currentAssignee = currentEditingIssue.getAssignee() != null ? currentEditingIssue.getAssignee() : "";
-        boolean assigneeChanged = !newAssignee.equals(currentAssignee);
-        
-        // Check story points changes
-        String newStoryPoints = storyPointsField.getText().trim();
-        String currentStoryPointsStr = currentEditingIssue.getStoryPoints() != null ? currentEditingIssue.getStoryPoints().toString() : "";
-        boolean storyPointsChanged = !newStoryPoints.equals(currentStoryPointsStr);
-        
-        if (!summaryChanged && !statusChanged && !descriptionChanged && !assigneeChanged && !storyPointsChanged) {
-            updateStatus("No changes to save");
-            return;
-        }
-        
-        if (issueSummaryField.getText().trim().isEmpty()) {
-            Messages.showErrorDialog(project, "Summary is required", "Validation Error");
-            issueSummaryField.requestFocus();
-            return;
-        }
-        
-        // Validate story points
-        Double storyPointsValue = null;
-        if (!newStoryPoints.isEmpty()) {
-            try {
-                storyPointsValue = Double.parseDouble(newStoryPoints);
-                if (storyPointsValue < 0) {
-                    Messages.showErrorDialog(project, "Story points must be a positive number", "Validation Error");
-                    storyPointsField.requestFocus();
-                    return;
+    private void setupAssigneeLabelHandlers() {
+        assigneeLabel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (currentEditingIssue != null && assigneeLabel.isEnabled()) {
+                    showAssigneeSelectionPopup();
                 }
-            } catch (NumberFormatException e) {
-                Messages.showErrorDialog(project, "Story points must be a valid number (e.g., 0.5, 1, 2)", "Validation Error");
-                storyPointsField.requestFocus();
-                return;
             }
-        }
-        
-        // Update the issue object
-        currentEditingIssue.setSummary(issueSummaryField.getText().trim());
-        currentEditingIssue.setStatus((String) issueStatusComboBox.getSelectedItem());
-        currentEditingIssue.setDescription(issueDescriptionField.getText().trim());
-        
-        // Update assignee
-        if (newAssignee.isEmpty()) {
-            currentEditingIssue.setAssignee(null);
-        } else {
-            currentEditingIssue.setAssignee(newAssignee);
-        }
-        
-        // Update story points
-        currentEditingIssue.setStoryPoints(storyPointsValue);
-        
-        updateStatus("Saving issue " + currentEditingIssue.getKey() + "...");
-        
-        // Disable controls during save
-        saveIssueButton.setEnabled(false);
-        cancelIssueButton.setEnabled(false);
-        
-        JiraService jiraService = getConfiguredJiraService();
-        jiraService.updateIssueAsync(currentEditingIssue)
-            .thenRun(() -> {
-                SwingUtilities.invokeLater(() -> {
-                    // Refresh the current sprint issues to show updated data
-                    JiraSprint selectedSprint = sprintList.getSelectedValue();
-                    if (selectedSprint != null) {
-                        loadSprintIssues(selectedSprint.getId());
+            
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                if (currentEditingIssue != null && assigneeLabel.isEnabled()) {
+                    Color currentBg = UIManager.getColor("Label.background");
+                    if (currentBg != null) {
+                        // Make it slightly brighter by adding 15 to each RGB component
+                        int r = Math.min(255, currentBg.getRed() + 15);
+                        int g = Math.min(255, currentBg.getGreen() + 15);
+                        int b = Math.min(255, currentBg.getBlue() + 15);
+                        assigneeLabel.setBackground(new Color(r, g, b));
+                    } else {
+                        assigneeLabel.setBackground(new Color(245, 245, 245)); // Fallback
                     }
-                    updateStatus("Issue " + currentEditingIssue.getKey() + " updated successfully");
-                    Messages.showInfoMessage(project, "Issue updated successfully", "Success");
-                    
-                    // Re-enable controls
-                    saveIssueButton.setEnabled(true);
-                    cancelIssueButton.setEnabled(true);
-                });
-            })
+                    assigneeLabel.repaint();
+                }
+            }
+            
+            @Override
+            public void mouseExited(MouseEvent e) {
+                if (currentEditingIssue != null && assigneeLabel.isEnabled()) {
+                    assigneeLabel.setBackground(UIManager.getColor("Label.background"));
+                    assigneeLabel.repaint();
+                }
+            }
+        });
+    }
+    
+    private void showAssigneeSelectionPopup() {
+        if (!isConfigured()) {
+            return;
+        }
+        
+        updateStatus("Loading assignable users...");
+        JiraService jiraService = getConfiguredJiraService();
+        
+        jiraService.getProjectUsersAsync(jiraService.getProjectKey())
+            .thenAccept(users -> SwingUtilities.invokeLater(() -> {
+                showAssigneeSearchDialog(users);
+                updateStatus("Ready");
+            }))
             .exceptionally(throwable -> {
                 SwingUtilities.invokeLater(() -> {
-                    updateStatus("Error updating issue: " + throwable.getMessage());
-                    Messages.showErrorDialog(project, "Failed to update issue: " + throwable.getMessage(), "Update Error");
-                    
-                    // Re-enable controls
-                    saveIssueButton.setEnabled(true);
-                    cancelIssueButton.setEnabled(true);
+                    updateStatus("Error loading users: " + throwable.getMessage());
                 });
                 return null;
             });
     }
     
-    private void cancelIssueEditing() {
-        if (currentEditingIssue != null) {
-            populateIssueForm(currentEditingIssue); // Restore original values
-            updateStatus("Changes cancelled");
-        }
-    }
-    
-    
-    private void handleAssigneeSelection() {
-        if (isHandlingAssigneeSelection) {
-            return; // Prevent recursion
-        }
+    private void showAssigneeSearchDialog(List<String> allUsers) {
+        // Create dialog panel
+        JPanel dialogPanel = new JPanel(new BorderLayout());
+        dialogPanel.setPreferredSize(new Dimension(300, 180));
         
-        String selected = (String) assigneeComboBox.getSelectedItem();
-        if ("me".equals(selected)) {
-            setAssigneeToCurrentUser();
-        } else if ("Select".equals(selected)) {
-            // Use SwingUtilities.invokeLater to prevent blocking the EDT
-            SwingUtilities.invokeLater(this::showAssigneeSelectionDialog);
-        }
-    }
-    
-    private void setAssigneeToCurrentUser() {
-        if (currentUser != null) {
-            selectedAssigneeAccountId = currentUser.get("accountId").getAsString();
-            selectedAssigneeDisplayName = currentUser.get("displayName").getAsString();
-        }
-    }
-    
-    private void showAssigneeSelectionDialog() {
-        if (!isConfigured()) {
-            resetAssigneeComboBoxSelection();
-            return;
-        }
+        // Create search field
+        JTextField searchField = new JTextField();
+        searchField.setBorder(BorderFactory.createTitledBorder("담당자 검색"));
+        dialogPanel.add(searchField, BorderLayout.NORTH);
         
-        String query = JOptionPane.showInputDialog(
-            contentPanel,
-            "Enter assignee name to search:",
-            "Select Assignee",
-            JOptionPane.PLAIN_MESSAGE
-        );
+        // Create user list with limited visible rows
+        DefaultListModel<String> listModel = new DefaultListModel<>();
+        JList<String> userList = new JList<>(listModel);
+        userList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        userList.setVisibleRowCount(4); // Limit to 4 visible rows
         
-        if (query != null && !query.trim().isEmpty()) {
-            updateStatus("Searching for users...");
-            JiraService jiraService = getConfiguredJiraService();
-            jiraService.searchUsersAsync(query.trim())
-                .thenAccept(users -> SwingUtilities.invokeLater(() -> {
-                    if (users.isEmpty()) {
-                        JOptionPane.showMessageDialog(contentPanel, "No users found matching: " + query);
-                        resetAssigneeComboBoxSelection();
-                        updateStatus("Ready");
-                        return;
+        // Enable hover selection for better user experience
+        userList.putClientProperty("List.mouseHoverSelection", true);
+        userList.setSelectionBackground(new Color(220, 220, 220)); // Light gray for hover
+        
+        // Custom renderer with enhanced visual feedback
+        userList.setCellRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, 
+                    boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                
+                String displayName = (String) value;
+                
+                // Set colors for better visual feedback
+                if (isSelected) {
+                    // Selected item - use IntelliJ theme colors
+                    setBackground(UIManager.getColor("List.selectionBackground"));
+                    setForeground(UIManager.getColor("List.selectionForeground"));
+                } else {
+                    // Normal item
+                    setBackground(UIManager.getColor("List.background"));
+                    setForeground(UIManager.getColor("List.foreground"));
+                }
+                
+                // Add special formatting for special items
+                if (displayName.contains("(나에게 할당)")) {
+                    setFont(getFont().deriveFont(Font.BOLD));
+                    if (!isSelected) {
+                        setForeground(new Color(0, 100, 0)); // Dark green for "assign to me"
                     }
-                    
-                    String[] userNames = users.stream()
-                        .filter(user -> user.has("displayName"))
-                        .map(user -> user.get("displayName").getAsString())
-                        .toArray(String[]::new);
-                    
-                    String selectedUser = (String) JOptionPane.showInputDialog(
-                        contentPanel,
-                        "Select assignee:",
-                        "Select Assignee",
-                        JOptionPane.PLAIN_MESSAGE,
-                        null,
-                        userNames,
-                        userNames.length > 0 ? userNames[0] : null
-                    );
-                    
-                    if (selectedUser != null) {
-                        assignSelectedUser(users, selectedUser);
-                    } else {
-                        resetAssigneeComboBoxSelection();
+                } else if (displayName.equals("할당되지 않음")) {
+                    setFont(getFont().deriveFont(Font.ITALIC));
+                    if (!isSelected) {
+                        setForeground(new Color(100, 100, 100)); // Gray for "unassigned"
                     }
-                    updateStatus("Ready");
-                }))
-                .exceptionally(throwable -> {
-                    SwingUtilities.invokeLater(() -> {
-                        JOptionPane.showMessageDialog(contentPanel, "Error searching users: " + throwable.getMessage());
-                        resetAssigneeComboBoxSelection();
-                        updateStatus("Ready");
-                    });
-                    return null;
-                });
-        } else {
-            resetAssigneeComboBoxSelection();
-        }
-    }
-    
-    private void assignSelectedUser(List<JsonObject> users, String selectedUser) {
-        isHandlingAssigneeSelection = true;
-        try {
-            // Find the account ID for the selected user
-            for (JsonObject user : users) {
-                if (user.has("displayName") && selectedUser.equals(user.get("displayName").getAsString())) {
-                    selectedAssigneeAccountId = user.get("accountId").getAsString();
-                    selectedAssigneeDisplayName = selectedUser;
-                    
-                    // Add to combo box if not already present
-                    boolean found = false;
-                    for (int i = 0; i < assigneeComboBox.getItemCount(); i++) {
-                        if (selectedUser.equals(assigneeComboBox.getItemAt(i))) {
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found) {
-                        assigneeComboBox.addItem(selectedUser);
-                    }
-                    assigneeComboBox.setSelectedItem(selectedUser);
-                    break;
+                } else {
+                    setFont(getFont().deriveFont(Font.PLAIN));
+                }
+                
+                // Add padding for better spacing
+                setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
+                
+                return this;
+            }
+        });
+        
+        JScrollPane scrollPane = new JScrollPane(userList);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        
+        // Enable mouse wheel scrolling
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        scrollPane.getVerticalScrollBar().setBlockIncrement(64);
+        
+        // Fix mouse wheel scrolling in popup menu
+        userList.addMouseWheelListener(e -> {
+            // Forward mouse wheel events to the scroll pane
+            if (scrollPane.getVerticalScrollBar().isVisible()) {
+                JScrollBar scrollBar = scrollPane.getVerticalScrollBar();
+                int scrollAmount = e.getUnitsToScroll() * scrollBar.getUnitIncrement();
+                int newValue = scrollBar.getValue() + scrollAmount;
+                newValue = Math.max(scrollBar.getMinimum(), Math.min(scrollBar.getMaximum() - scrollBar.getVisibleAmount(), newValue));
+                scrollBar.setValue(newValue);
+            }
+        });
+        
+        dialogPanel.add(scrollPane, BorderLayout.CENTER);
+        
+        // Initialize the list with all options
+        updateUserList(listModel, allUsers, "");
+        
+        // Add search functionality
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                filterUsers();
+            }
+            
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                filterUsers();
+            }
+            
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                filterUsers();
+            }
+            
+            private void filterUsers() {
+                String searchText = searchField.getText().toLowerCase().trim();
+                updateUserList(listModel, allUsers, searchText);
+                // Auto-select first item if list is not empty
+                if (listModel.getSize() > 0) {
+                    userList.setSelectedIndex(0);
                 }
             }
-        } finally {
-            isHandlingAssigneeSelection = false;
-        }
-    }
-    
-    private void resetAssigneeComboBoxSelection() {
-        // Reset selection without triggering the action listener
-        isHandlingAssigneeSelection = true;
-        try {
-            // Find a previous selection (not "Select") or default to "me"
-            String previousSelection = null;
-            for (int i = 0; i < assigneeComboBox.getItemCount(); i++) {
-                String item = assigneeComboBox.getItemAt(i);
-                if (!"Select".equals(item)) {
-                    previousSelection = item;
-                    break;
+        });
+        
+        // Add Enter key support to search field
+        searchField.addKeyListener(new KeyListener() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    // Select first item in the list if available
+                    if (listModel.getSize() > 0) {
+                        userList.setSelectedIndex(0);
+                        selectUser(userList);
+                    }
+                } else if (e.getKeyCode() == KeyEvent.VK_DOWN) {
+                    // Move focus to list when arrow down is pressed
+                    if (listModel.getSize() > 0) {
+                        userList.requestFocus();
+                        userList.setSelectedIndex(0);
+                    }
                 }
             }
             
-            if (previousSelection != null) {
-                assigneeComboBox.setSelectedItem(previousSelection);
-            } else {
-                // Ensure "me" option exists
-                boolean meExists = false;
-                for (int i = 0; i < assigneeComboBox.getItemCount(); i++) {
-                    if ("me".equals(assigneeComboBox.getItemAt(i))) {
-                        meExists = true;
-                        break;
+            @Override
+            public void keyTyped(KeyEvent e) {}
+            
+            @Override
+            public void keyReleased(KeyEvent e) {}
+        });
+        
+        // Add double-click and Enter key support
+        userList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    selectUser(userList);
+                }
+            }
+        });
+        
+        userList.addKeyListener(new KeyListener() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    selectUser(userList);
+                } else if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    // Close popup on Escape
+                    Component comp = userList;
+                    while (comp != null && !(comp instanceof JPopupMenu)) {
+                        comp = comp.getParent();
+                    }
+                    if (comp instanceof JPopupMenu) {
+                        ((JPopupMenu) comp).setVisible(false);
                     }
                 }
-                if (!meExists) {
-                    assigneeComboBox.addItem("me");
-                }
-                assigneeComboBox.setSelectedItem("me");
-                setAssigneeToCurrentUser();
             }
-        } finally {
-            isHandlingAssigneeSelection = false;
+            
+            @Override
+            public void keyTyped(KeyEvent e) {
+                // Forward printable characters to search field
+                if (!Character.isISOControl(e.getKeyChar()) && searchField != null) {
+                    searchField.requestFocus();
+                    searchField.dispatchEvent(e);
+                }
+            }
+            
+            @Override
+            public void keyReleased(KeyEvent e) {}
+        });
+        
+        // Create and show popup
+        JPopupMenu popup = new JPopupMenu();
+        popup.add(dialogPanel);
+        popup.show(assigneeLabel, 0, assigneeLabel.getHeight());
+        
+        // Focus on search field
+        SwingUtilities.invokeLater(() -> searchField.requestFocus());
+    }
+    
+    private void updateUserList(DefaultListModel<String> listModel, List<String> allUsers, String searchText) {
+        listModel.clear();
+        
+        // Add "me" option at the top
+        if (currentUser != null) {
+            String myDisplayName = currentUser.get("displayName").getAsString();
+            String meOption = myDisplayName + " (나에게 할당)";
+            if (searchText.isEmpty() || myDisplayName.toLowerCase().contains(searchText)) {
+                listModel.addElement(meOption);
+            }
+        }
+        
+        // Add "unassign" option
+        if (searchText.isEmpty() || "할당되지 않음".toLowerCase().contains(searchText) || 
+            "unassigned".toLowerCase().contains(searchText)) {
+            listModel.addElement("할당되지 않음");
+        }
+        
+        // Add filtered users
+        for (String userDisplayName : allUsers) {
+            if (currentUser != null && userDisplayName.equals(currentUser.get("displayName").getAsString())) {
+                continue; // Skip current user as it's already at the top
+            }
+            
+            if (searchText.isEmpty() || userDisplayName.toLowerCase().contains(searchText)) {
+                listModel.addElement(userDisplayName);
+            }
         }
     }
     
+    private void selectUser(JList<String> userList) {
+        String selectedUser = userList.getSelectedValue();
+        if (selectedUser == null) return;
+        
+        // Close the popup
+        Component comp = userList;
+        while (comp != null && !(comp instanceof JPopupMenu)) {
+            comp = comp.getParent();
+        }
+        if (comp instanceof JPopupMenu) {
+            ((JPopupMenu) comp).setVisible(false);
+        }
+        
+        // Handle selection
+        if (selectedUser.contains("(나에게 할당)")) {
+            // Assign to me
+            if (currentUser != null) {
+                String myDisplayName = currentUser.get("displayName").getAsString();
+                String myAccountId = currentUser.get("accountId").getAsString();
+                updateAssignee(myAccountId, myDisplayName);
+            }
+        } else if (selectedUser.equals("할당되지 않음")) {
+            // Unassign
+            updateAssignee(null, null);
+        } else {
+            // Regular user
+            findAccountIdAndUpdateAssignee(selectedUser);
+        }
+    }
     
+    private void findAccountIdAndUpdateAssignee(String displayName) {
+        updateStatus("Finding user account...");
+        JiraService jiraService = getConfiguredJiraService();
+        
+        jiraService.searchUsersAsync(displayName)
+            .thenAccept(users -> SwingUtilities.invokeLater(() -> {
+                for (com.google.gson.JsonObject user : users) {
+                    if (user.has("displayName") && displayName.equals(user.get("displayName").getAsString())) {
+                        String accountId = user.get("accountId").getAsString();
+                        updateAssignee(accountId, displayName);
+                        return;
+                    }
+                }
+                updateStatus("User not found: " + displayName);
+            }))
+            .exceptionally(throwable -> {
+                SwingUtilities.invokeLater(() -> {
+                    updateStatus("Error finding user: " + throwable.getMessage());
+                });
+                return null;
+            });
+    }
+    
+    private void updateAssignee(String accountId, String displayName) {
+        if (currentEditingIssue == null) return;
+        
+        String oldAssignee = currentEditingIssue.getAssignee();
+        String newAssignee = displayName != null ? displayName : null;
+        
+        if ((oldAssignee == null && newAssignee == null) || 
+            (oldAssignee != null && oldAssignee.equals(newAssignee))) {
+            updateStatus("No changes to assignee");
+            return;
+        }
+        
+        updateStatus("Updating assignee...");
+        currentEditingIssue.setAssignee(newAssignee);
+        
+        JiraService jiraService = getConfiguredJiraService();
+        jiraService.updateIssueAssigneeAsync(currentEditingIssue.getKey(), accountId)
+            .thenRun(() -> SwingUtilities.invokeLater(() -> {
+                // Update UI
+                if (displayName != null) {
+                    assigneeLabel.setText(displayName);
+                } else {
+                    assigneeLabel.setText("할당되지 않음");
+                }
+                
+                updateStatus("Assignee updated successfully for " + currentEditingIssue.getKey());
+            }))
+            .exceptionally(throwable -> {
+                SwingUtilities.invokeLater(() -> {
+                    // Restore old value on error
+                    currentEditingIssue.setAssignee(oldAssignee);
+                    if (oldAssignee != null) {
+                        assigneeLabel.setText(oldAssignee);
+                    } else {
+                        assigneeLabel.setText("할당되지 않음");
+                    }
+                    updateStatus("Error updating assignee: " + throwable.getMessage());
+                    Messages.showErrorDialog(project, "Failed to update assignee: " + throwable.getMessage(), "Update Error");
+                });
+                return null;
+            });
+    }
+    
+    // Removed saveCurrentIssue() and cancelIssueEditing() methods
+    // All editing is now handled inline with individual field save functionality
     
     private void showSettingsDialog() {
         JiraSettings settings = JiraSettings.getInstance();
