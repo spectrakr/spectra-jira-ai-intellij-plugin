@@ -7,7 +7,6 @@ import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.JBUI;
 import com.spectra.intellij.ai.dialog.CreateIssueDialog;
-import com.spectra.intellij.ai.dialog.JiraIssueDetailDialog;
 import com.spectra.intellij.ai.model.JiraIssue;
 import com.spectra.intellij.ai.model.JiraSprint;
 import com.spectra.intellij.ai.service.JiraService;
@@ -20,6 +19,10 @@ import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.ActionListener;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
@@ -46,11 +49,19 @@ public class JiraToolWindowContent {
     private JPanel issueDetailPanel;
     private JTextField issueKeyField;
     private JTextField issueSummaryField;
+    private boolean isSummaryEditing = false;
+    private String originalSummaryValue = "";
     private JComboBox<String> issueStatusComboBox;
-    private JTextArea issueDescriptionArea;
+    private boolean isStatusEditing = false;
+    private String originalStatusValue = "";
+    private JTextField issueDescriptionField;
     private JComboBox<String> assigneeComboBox;
     private JLabel reporterLabel;
     private JTextField storyPointsField;
+    private boolean isStoryPointsEditing = false;
+    private String originalStoryPointsValue = "";
+    private boolean isDescriptionEditing = false;
+    private String originalDescriptionValue = "";
     private JButton saveIssueButton;
     private JButton cancelIssueButton;
     private JiraIssue currentEditingIssue;
@@ -199,22 +210,6 @@ public class JiraToolWindowContent {
             }
         });
         
-        // Add double-click handler to open detail dialog
-        issueTable.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                System.out.println("___ JiraToolWindowContent: Issue table mouse clicked, count: " + e.getClickCount());
-                if (e.getClickCount() == 2) {
-                    int selectedRow = issueTable.getSelectedRow();
-                    System.out.println("___ JiraToolWindowContent: Double-click detected on row: " + selectedRow);
-                    if (selectedRow >= 0) {
-                        String issueKey = (String) issueTableModel.getValueAt(selectedRow, 0);
-                        System.out.println("___ JiraToolWindowContent: Opening detail dialog for issue: " + issueKey);
-                        openIssueDetailDialog(issueKey);
-                    }
-                }
-            }
-        });
 
         
         JBScrollPane issueScrollPane = new JBScrollPane(issueTable);
@@ -356,26 +351,24 @@ public class JiraToolWindowContent {
         issueKeyField.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
         formPanel.add(issueKeyField, gbc);
         
-        // Summary (no label)
+        // Summary (no label) - with inline edit capability
         gbc.gridx = 0; gbc.gridy = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0; gbc.gridwidth = 2;
         issueSummaryField = new JTextField();
         issueSummaryField.setFont(issueSummaryField.getFont().deriveFont(Font.BOLD, 12f));
+        setupInlineEditForSummary();
         formPanel.add(issueSummaryField, gbc);
         
-        // Status (no label)
+        // Status (no label) - with inline edit capability
         gbc.gridx = 0; gbc.gridy = 2; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0; gbc.gridwidth = 2;
         issueStatusComboBox = new JComboBox<>();
+        setupInlineEditForStatus();
         formPanel.add(issueStatusComboBox, gbc);
         
-        // Description (no label)
-        gbc.gridx = 0; gbc.gridy = 3; gbc.fill = GridBagConstraints.BOTH; gbc.weightx = 1.0; gbc.weighty = 1.0; gbc.gridwidth = 2;
-        issueDescriptionArea = new JTextArea(10, 20);
-        issueDescriptionArea.setLineWrap(true);
-        issueDescriptionArea.setWrapStyleWord(true);
-        JScrollPane descScrollPane = new JScrollPane(issueDescriptionArea);
-        descScrollPane.setMinimumSize(new Dimension(0, 150));
-        descScrollPane.setPreferredSize(new Dimension(0, 200));
-        formPanel.add(descScrollPane, gbc);
+        // Description (no label) - with inline edit capability
+        gbc.gridx = 0; gbc.gridy = 3; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0; gbc.weighty = 0; gbc.gridwidth = 2;
+        issueDescriptionField = new JTextField();
+        setupInlineEditForDescription();
+        formPanel.add(issueDescriptionField, gbc);
         
         // 세부사항 영역
         gbc.gridx = 0; gbc.gridy = 4; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0; gbc.weighty = 0; gbc.gridwidth = 2;
@@ -414,6 +407,7 @@ public class JiraToolWindowContent {
         detailGbc.gridx = 1; detailGbc.fill = GridBagConstraints.HORIZONTAL; detailGbc.weightx = 1.0;
         storyPointsField = new JTextField();
         storyPointsField.setPreferredSize(new Dimension(100, storyPointsField.getPreferredSize().height));
+        setupInlineEditForStoryPoints();
         detailsPanel.add(storyPointsField, detailGbc);
         
         formPanel.add(detailsPanel, gbc);
@@ -439,6 +433,408 @@ public class JiraToolWindowContent {
         clearIssueDetail();
         
         return detailPanel;
+    }
+    
+    private void setupInlineEditForSummary() {
+        // Initially make it look like a label (non-editable)
+        setSummaryDisplayMode();
+        
+        // Add mouse click listener to enter edit mode
+        issueSummaryField.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (currentEditingIssue != null && issueSummaryField.isEnabled()) {
+                    enterSummaryEditMode();
+                }
+            }
+        });
+        
+        // Add key listener for Enter key and Escape key
+        issueSummaryField.addKeyListener(new KeyListener() {
+            @Override
+            public void keyTyped(KeyEvent e) {}
+            
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    exitSummaryEditMode(true); // Save changes
+                } else if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    exitSummaryEditMode(false); // Cancel changes
+                }
+            }
+            
+            @Override
+            public void keyReleased(KeyEvent e) {}
+        });
+        
+        // Add focus listener to save changes when focus is lost
+        issueSummaryField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(FocusEvent e) {
+                if (isSummaryEditing) {
+                    exitSummaryEditMode(true); // Save changes when focus is lost
+                }
+            }
+        });
+    }
+    
+    private void setSummaryDisplayMode() {
+        isSummaryEditing = false;
+        issueSummaryField.setEditable(false);
+        issueSummaryField.setFocusable(false); // Prevent focus
+        issueSummaryField.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+        issueSummaryField.setBackground(UIManager.getColor("Panel.background"));
+        issueSummaryField.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+    }
+    
+    private void enterSummaryEditMode() {
+        if (currentEditingIssue == null) return;
+        
+        isSummaryEditing = true;
+        originalSummaryValue = issueSummaryField.getText();
+        issueSummaryField.setEditable(true);
+        issueSummaryField.setFocusable(true); // Re-enable focus for editing
+        issueSummaryField.setBorder(UIManager.getBorder("TextField.border"));
+        issueSummaryField.setBackground(UIManager.getColor("TextField.background"));
+        issueSummaryField.setCursor(Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR));
+        issueSummaryField.requestFocus();
+        issueSummaryField.selectAll();
+    }
+    
+    private void exitSummaryEditMode(boolean saveChanges) {
+        if (!isSummaryEditing) return;
+        
+        if (saveChanges) {
+            String newSummary = issueSummaryField.getText().trim();
+            if (!newSummary.isEmpty() && !newSummary.equals(originalSummaryValue)) {
+                // Save the changes immediately
+                saveSummaryChange(newSummary);
+            }
+        } else {
+            // Restore original value
+            issueSummaryField.setText(originalSummaryValue);
+        }
+        
+        setSummaryDisplayMode();
+    }
+    
+    private void saveSummaryChange(String newSummary) {
+        if (currentEditingIssue == null) return;
+        
+        String oldSummary = currentEditingIssue.getSummary();
+        currentEditingIssue.setSummary(newSummary);
+        
+        updateStatus("Saving summary change...");
+        
+        JiraService jiraService = getConfiguredJiraService();
+        jiraService.updateIssueAsync(currentEditingIssue)
+            .thenRun(() -> {
+                SwingUtilities.invokeLater(() -> {
+                    // Refresh the current sprint issues to show updated data
+                    JiraSprint selectedSprint = sprintList.getSelectedValue();
+                    if (selectedSprint != null) {
+                        loadSprintIssues(selectedSprint.getId());
+                    }
+                    updateStatus("Summary updated successfully for " + currentEditingIssue.getKey());
+                });
+            })
+            .exceptionally(throwable -> {
+                SwingUtilities.invokeLater(() -> {
+                    // Restore old value on error
+                    currentEditingIssue.setSummary(oldSummary);
+                    issueSummaryField.setText(oldSummary);
+                    updateStatus("Error updating summary: " + throwable.getMessage());
+                    Messages.showErrorDialog(project, "Failed to update summary: " + throwable.getMessage(), "Update Error");
+                });
+                return null;
+            });
+    }
+    
+    private void setupInlineEditForDescription() {
+        // Initially make it look like a label (non-editable)
+        setDescriptionDisplayMode();
+        
+        // Add mouse click listener to enter edit mode
+        issueDescriptionField.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (currentEditingIssue != null && issueDescriptionField.isEnabled()) {
+                    enterDescriptionEditMode();
+                }
+            }
+        });
+        
+        // Add key listener for Enter key and Escape key
+        issueDescriptionField.addKeyListener(new KeyListener() {
+            @Override
+            public void keyTyped(KeyEvent e) {}
+            
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    exitDescriptionEditMode(true); // Save changes
+                } else if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    exitDescriptionEditMode(false); // Cancel changes
+                }
+            }
+            
+            @Override
+            public void keyReleased(KeyEvent e) {}
+        });
+        
+        // Add focus listener to save changes when focus is lost
+        issueDescriptionField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(FocusEvent e) {
+                if (isDescriptionEditing) {
+                    exitDescriptionEditMode(true); // Save changes when focus is lost
+                }
+            }
+        });
+    }
+    
+    private void setDescriptionDisplayMode() {
+        isDescriptionEditing = false;
+        issueDescriptionField.setEditable(false);
+        issueDescriptionField.setFocusable(false); // Prevent focus
+        issueDescriptionField.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+        issueDescriptionField.setBackground(UIManager.getColor("Panel.background"));
+        issueDescriptionField.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+    }
+    
+    private void enterDescriptionEditMode() {
+        if (currentEditingIssue == null) return;
+        
+        isDescriptionEditing = true;
+        originalDescriptionValue = issueDescriptionField.getText();
+        issueDescriptionField.setEditable(true);
+        issueDescriptionField.setFocusable(true); // Re-enable focus for editing
+        issueDescriptionField.setBorder(UIManager.getBorder("TextField.border"));
+        issueDescriptionField.setBackground(UIManager.getColor("TextField.background"));
+        issueDescriptionField.setCursor(Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR));
+        issueDescriptionField.requestFocus();
+        issueDescriptionField.selectAll();
+    }
+    
+    private void exitDescriptionEditMode(boolean saveChanges) {
+        if (!isDescriptionEditing) return;
+        
+        if (saveChanges) {
+            String newDescription = issueDescriptionField.getText().trim();
+            if (!newDescription.equals(originalDescriptionValue)) {
+                // Save the changes immediately
+                saveDescriptionChange(newDescription);
+            }
+        } else {
+            // Restore original value
+            issueDescriptionField.setText(originalDescriptionValue);
+        }
+        
+        setDescriptionDisplayMode();
+    }
+    
+    private void saveDescriptionChange(String newDescription) {
+        if (currentEditingIssue == null) return;
+        
+        String oldDescription = currentEditingIssue.getDescription();
+        currentEditingIssue.setDescription(newDescription);
+        
+        updateStatus("Saving description change...");
+        
+        JiraService jiraService = getConfiguredJiraService();
+        jiraService.updateIssueAsync(currentEditingIssue)
+            .thenRun(() -> {
+                SwingUtilities.invokeLater(() -> {
+                    // Refresh the current sprint issues to show updated data
+                    JiraSprint selectedSprint = sprintList.getSelectedValue();
+                    if (selectedSprint != null) {
+                        loadSprintIssues(selectedSprint.getId());
+                    }
+                    updateStatus("Description updated successfully for " + currentEditingIssue.getKey());
+                });
+            })
+            .exceptionally(throwable -> {
+                SwingUtilities.invokeLater(() -> {
+                    // Restore old value on error
+                    currentEditingIssue.setDescription(oldDescription);
+                    issueDescriptionField.setText(oldDescription != null ? oldDescription : "");
+                    updateStatus("Error updating description: " + throwable.getMessage());
+                    Messages.showErrorDialog(project, "Failed to update description: " + throwable.getMessage(), "Update Error");
+                });
+                return null;
+            });
+    }
+    
+    private void setupInlineEditForStoryPoints() {
+        // Initially make it look like a label (non-editable)
+        setStoryPointsDisplayMode();
+        
+        // Add mouse click listener to enter edit mode
+        storyPointsField.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (currentEditingIssue != null && storyPointsField.isEnabled()) {
+                    enterStoryPointsEditMode();
+                }
+            }
+        });
+        
+        // Add key listener for Enter key and Escape key
+        storyPointsField.addKeyListener(new KeyListener() {
+            @Override
+            public void keyTyped(KeyEvent e) {}
+            
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    exitStoryPointsEditMode(true); // Save changes
+                } else if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    exitStoryPointsEditMode(false); // Cancel changes
+                }
+            }
+            
+            @Override
+            public void keyReleased(KeyEvent e) {}
+        });
+        
+        // Add focus listener to save changes when focus is lost
+        storyPointsField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(FocusEvent e) {
+                if (isStoryPointsEditing) {
+                    exitStoryPointsEditMode(true); // Save changes when focus is lost
+                }
+            }
+        });
+    }
+    
+    private void setStoryPointsDisplayMode() {
+        isStoryPointsEditing = false;
+        storyPointsField.setEditable(false);
+        storyPointsField.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+        storyPointsField.setBackground(UIManager.getColor("Panel.background"));
+        storyPointsField.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+    }
+    
+    private void enterStoryPointsEditMode() {
+        if (currentEditingIssue == null) return;
+        
+        isStoryPointsEditing = true;
+        originalStoryPointsValue = storyPointsField.getText();
+        storyPointsField.setEditable(true);
+        storyPointsField.setBorder(UIManager.getBorder("TextField.border"));
+        storyPointsField.setBackground(UIManager.getColor("TextField.background"));
+        storyPointsField.setCursor(Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR));
+        storyPointsField.requestFocus();
+        storyPointsField.selectAll();
+    }
+    
+    private void exitStoryPointsEditMode(boolean saveChanges) {
+        if (!isStoryPointsEditing) return;
+        
+        if (saveChanges) {
+            String newStoryPoints = storyPointsField.getText().trim();
+            if (!newStoryPoints.equals(originalStoryPointsValue)) {
+                // Validate story points
+                try {
+                    if (!newStoryPoints.isEmpty()) {
+                        Double.parseDouble(newStoryPoints);
+                    }
+                    // Save the changes immediately
+                    saveStoryPointsChange(newStoryPoints);
+                } catch (NumberFormatException e) {
+                    Messages.showErrorDialog(project, "Story points must be a valid number (e.g., 0.5, 1, 2)", "Validation Error");
+                    storyPointsField.setText(originalStoryPointsValue);
+                }
+            }
+        } else {
+            // Restore original value
+            storyPointsField.setText(originalStoryPointsValue);
+        }
+        
+        setStoryPointsDisplayMode();
+    }
+    
+    private void saveStoryPointsChange(String newStoryPoints) {
+        if (currentEditingIssue == null) return;
+        
+        Double oldStoryPoints = currentEditingIssue.getStoryPoints();
+        Double newStoryPointsValue = newStoryPoints.isEmpty() ? null : Double.parseDouble(newStoryPoints);
+        currentEditingIssue.setStoryPoints(newStoryPointsValue);
+        
+        updateStatus("Saving story points change...");
+        
+        JiraService jiraService = getConfiguredJiraService();
+        jiraService.updateIssueAsync(currentEditingIssue)
+            .thenRun(() -> {
+                SwingUtilities.invokeLater(() -> {
+                    // Refresh the current sprint issues to show updated data
+                    JiraSprint selectedSprint = sprintList.getSelectedValue();
+                    if (selectedSprint != null) {
+                        loadSprintIssues(selectedSprint.getId());
+                    }
+                    updateStatus("Story points updated successfully for " + currentEditingIssue.getKey());
+                });
+            })
+            .exceptionally(throwable -> {
+                SwingUtilities.invokeLater(() -> {
+                    // Restore old value on error
+                    currentEditingIssue.setStoryPoints(oldStoryPoints);
+                    storyPointsField.setText(oldStoryPoints != null ? oldStoryPoints.toString() : "");
+                    updateStatus("Error updating story points: " + throwable.getMessage());
+                    Messages.showErrorDialog(project, "Failed to update story points: " + throwable.getMessage(), "Update Error");
+                });
+                return null;
+            });
+    }
+    
+    private void setupInlineEditForStatus() {
+        // Status combo box doesn't need display mode like text fields
+        // Just add action listener to handle immediate changes
+        issueStatusComboBox.addActionListener(e -> {
+            if (currentEditingIssue != null && !isStatusEditing) {
+                String newStatus = (String) issueStatusComboBox.getSelectedItem();
+                if (newStatus != null && !newStatus.equals(originalStatusValue)) {
+                    saveStatusChange(newStatus);
+                }
+            }
+        });
+    }
+    
+    private void saveStatusChange(String newStatus) {
+        if (currentEditingIssue == null) return;
+        
+        isStatusEditing = true; // Prevent recursive calls
+        String oldStatus = currentEditingIssue.getStatus();
+        currentEditingIssue.setStatus(newStatus);
+        
+        updateStatus("Saving status change...");
+        
+        JiraService jiraService = getConfiguredJiraService();
+        jiraService.updateIssueAsync(currentEditingIssue)
+            .thenRun(() -> {
+                SwingUtilities.invokeLater(() -> {
+                    isStatusEditing = false;
+                    originalStatusValue = newStatus; // Update original value
+                    // Refresh the current sprint issues to show updated data
+                    JiraSprint selectedSprint = sprintList.getSelectedValue();
+                    if (selectedSprint != null) {
+                        loadSprintIssues(selectedSprint.getId());
+                    }
+                    updateStatus("Status updated successfully for " + currentEditingIssue.getKey());
+                });
+            })
+            .exceptionally(throwable -> {
+                SwingUtilities.invokeLater(() -> {
+                    isStatusEditing = false;
+                    // Restore old value on error
+                    currentEditingIssue.setStatus(oldStatus);
+                    issueStatusComboBox.setSelectedItem(oldStatus);
+                    updateStatus("Error updating status: " + throwable.getMessage());
+                    Messages.showErrorDialog(project, "Failed to update status: " + throwable.getMessage(), "Update Error");
+                });
+                return null;
+            });
     }
     
     
@@ -835,7 +1231,7 @@ public class JiraToolWindowContent {
     private void populateIssueForm(JiraIssue issue) {
         issueKeyField.setText(issue.getKey() != null ? issue.getKey() : "");
         issueSummaryField.setText(issue.getSummary() != null ? issue.getSummary() : "");
-        issueDescriptionArea.setText(issue.getDescription() != null ? issue.getDescription() : "");
+        issueDescriptionField.setText(issue.getDescription() != null ? issue.getDescription() : "");
         
         // Populate detail fields
         // Initialize assignee selection based on current issue assignee
@@ -843,12 +1239,21 @@ public class JiraToolWindowContent {
         reporterLabel.setText(issue.getReporter() != null ? issue.getReporter() : "없음");
         storyPointsField.setText(issue.getStoryPoints() != null ? issue.getStoryPoints().toString() : "");
         
-        // Enable editing controls
+        // Enable editing controls and set display modes for inline editing
         issueSummaryField.setEnabled(true);
+        setSummaryDisplayMode(); // Set to display mode for inline editing
+        
         issueStatusComboBox.setEnabled(true);
-        issueDescriptionArea.setEnabled(true);
+        originalStatusValue = issue.getStatus() != null ? issue.getStatus() : "";
+        
+        issueDescriptionField.setEnabled(true);
+        setDescriptionDisplayMode(); // Set to display mode for inline editing
+        
         assigneeComboBox.setEnabled(true);
+        
         storyPointsField.setEnabled(true);
+        setStoryPointsDisplayMode(); // Set to display mode for inline editing
+        
         saveIssueButton.setEnabled(true);
         cancelIssueButton.setEnabled(true);
     }
@@ -916,7 +1321,7 @@ public class JiraToolWindowContent {
         currentEditingIssue = null;
         issueKeyField.setText("이슈를 선택하세요");
         issueSummaryField.setText("");
-        issueDescriptionArea.setText("");
+        issueDescriptionField.setText("");
         issueStatusComboBox.removeAllItems();
         
         // Clear detail fields - temporarily disable action listener
@@ -933,12 +1338,21 @@ public class JiraToolWindowContent {
         reporterLabel.setText("");
         storyPointsField.setText("");
         
-        // Disable editing controls
+        // Disable editing controls and set display modes
         issueSummaryField.setEnabled(false);
+        setSummaryDisplayMode(); // Ensure proper display mode when disabled
+        
         issueStatusComboBox.setEnabled(false);
-        issueDescriptionArea.setEnabled(false);
+        originalStatusValue = "";
+        
+        issueDescriptionField.setEnabled(false);
+        setDescriptionDisplayMode(); // Ensure proper display mode when disabled
+        
         assigneeComboBox.setEnabled(false);
+        
         storyPointsField.setEnabled(false);
+        setStoryPointsDisplayMode(); // Ensure proper display mode when disabled
+        
         saveIssueButton.setEnabled(false);
         cancelIssueButton.setEnabled(false);
     }
@@ -951,7 +1365,7 @@ public class JiraToolWindowContent {
         // Check if anything was modified
         boolean summaryChanged = !issueSummaryField.getText().trim().equals(currentEditingIssue.getSummary() != null ? currentEditingIssue.getSummary() : "");
         boolean statusChanged = !issueStatusComboBox.getSelectedItem().toString().equals(currentEditingIssue.getStatus() != null ? currentEditingIssue.getStatus() : "");
-        boolean descriptionChanged = !issueDescriptionArea.getText().trim().equals(currentEditingIssue.getDescription() != null ? currentEditingIssue.getDescription() : "");
+        boolean descriptionChanged = !issueDescriptionField.getText().trim().equals(currentEditingIssue.getDescription() != null ? currentEditingIssue.getDescription() : "");
         
         // Check assignee changes
         String newAssignee = selectedAssigneeDisplayName != null ? selectedAssigneeDisplayName : "";
@@ -994,7 +1408,7 @@ public class JiraToolWindowContent {
         // Update the issue object
         currentEditingIssue.setSummary(issueSummaryField.getText().trim());
         currentEditingIssue.setStatus((String) issueStatusComboBox.getSelectedItem());
-        currentEditingIssue.setDescription(issueDescriptionArea.getText().trim());
+        currentEditingIssue.setDescription(issueDescriptionField.getText().trim());
         
         // Update assignee
         if (newAssignee.isEmpty()) {
@@ -1197,41 +1611,6 @@ public class JiraToolWindowContent {
     }
     
     
-    private void openIssueDetailDialog(String issueKey) {
-        if (!isConfigured()) {
-            showConfigurationError();
-            return;
-        }
-        
-        updateStatus("Loading issue details: " + issueKey + "...");
-        System.out.println("___ JiraToolWindowContent: Loading issue details for: " + issueKey);
-        
-        JiraService jiraService = getConfiguredJiraService();
-        jiraService.getIssueAsync(issueKey)
-            .thenAccept(issue -> SwingUtilities.invokeLater(() -> {
-                System.out.println("___ JiraToolWindowContent: Creating JiraIssueDetailDialog for issue: " + issue.getKey());
-                System.out.println("___ JiraToolWindowContent: Issue summary: " + issue.getSummary());
-                JiraIssueDetailDialog dialog = new JiraIssueDetailDialog(project, jiraService, issue);
-                System.out.println("___ JiraToolWindowContent: JiraIssueDetailDialog created, calling showAndGet()");
-                if (dialog.showAndGet() && dialog.isModified()) {
-                    // Refresh the current sprint issues to show updated data
-                    JiraSprint selectedSprint = sprintList.getSelectedValue();
-                    if (selectedSprint != null) {
-                        loadSprintIssues(selectedSprint.getId());
-                    }
-                    updateStatus("Issue " + issueKey + " updated successfully");
-                } else {
-                    updateStatus("Issue details dialog closed");
-                }
-            }))
-            .exceptionally(throwable -> {
-                SwingUtilities.invokeLater(() -> {
-                    updateStatus("Error loading issue: " + throwable.getMessage());
-                    Messages.showErrorDialog(project, "Failed to load issue details: " + throwable.getMessage(), "Error");
-                });
-                return null;
-            });
-    }
     
     private void showSettingsDialog() {
         JiraSettings settings = JiraSettings.getInstance();
