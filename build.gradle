@@ -3,8 +3,8 @@ plugins {
     id 'org.jetbrains.intellij' version '1.17.4'
 }
 
-group 'com.spectra.intellij.ai'
-version '1.0.0'
+group = 'com.spectra.intellij.ai'
+version = '1.0.0'
 
 // Dynamic version from Git tag or environment variable
 def getVersionName() {
@@ -34,7 +34,8 @@ repositories {
 
 // Configure Gradle IntelliJ Plugin
 intellij {
-    version = '2023.3.6'
+//    version = '2023.3.6'
+    version = '2024.1.1'
     type = 'IU'
     plugins = ['java']
     updateSinceUntilBuild = false

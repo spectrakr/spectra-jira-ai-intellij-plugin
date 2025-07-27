@@ -65,10 +65,10 @@ Actions/Tool Window → JiraService → Jira REST API
 ## Key Technical Details
 
 ### IntelliJ Platform Integration
-- **Plugin ID**: `com.spectra.intellij.ai`
+- **Plugin ID**: `com.spectra.jira.ai` (note: different from group ID `com.spectra.intellij.ai`)
 - **Target IDE**: IntelliJ IDEA Ultimate 2023.3.6
 - **Java Version**: 17
-- **Platform Version**: Builds 233 to 242.*
+- **Platform Version**: Since build 241.15989.150 (current), configured for builds 233 to 242.*
 
 ### Dependencies
 - **OkHttp 4.12.0**: HTTP client for Jira API calls
@@ -83,14 +83,18 @@ All Jira API calls use `CompletableFuture` for asynchronous execution to prevent
 ### Authentication
 Uses Jira Basic Authentication with username/API token. API tokens are stored securely using IntelliJ's persistent state component.
 
+### API Integration
+- **Jira REST API v2 & v3**: Used for issue operations
+- **Jira Agile API v1.0**: Used for sprint and board operations
+- **Default Project Key**: "PROJ" (configurable through service)
+- **Async Operations**: All API calls use `CompletableFuture` to prevent UI blocking
+
 ## Plugin Structure
 
 ### Main Package: `com.spectra.intellij.ai`
 
 - **`actions/`**: IDE actions for menus and tool window
-  - `CreateJiraIssueAction`: Opens issue creation dialog
-  - `SelectSprintAction`: Shows sprint selection dialog
-  - `SelectTaskAction`: Shows task selection from active sprint
+  - `CreateJiraIssueAction`: Opens issue creation dialog (registered in Tools menu)
 
 - **`dialog/`**: UI dialogs extending `DialogWrapper`
   - `CreateIssueDialog`: Form for creating new Jira issues
@@ -109,22 +113,25 @@ Uses Jira Basic Authentication with username/API token. API tokens are stored se
   - `JiraConfigurable`: Settings UI panel
 
 - **`toolwindow/`**: Tool window implementation
-  - `JiraToolWindowFactory`: Creates the tool window
+  - `JiraToolWindowFactory`: Creates the tool window (anchored at bottom)
   - `JiraToolWindowContent`: Main UI with buttons and status display
 
 ## Configuration Files
 
 ### `plugin.xml`
-- Defines actions in Tools menu and custom "Spectra Jira" group
-- Registers tool window as "Spectra Jira" on the right side
-- Configures settings under Tools section
+- Defines actions in Tools menu (Create Jira Issue action)
+- Registers tool window as "Spectra Jira" at bottom anchor
+- Configures settings under Tools section as "Spectra Jira Settings"
 - Declares dependencies on platform and Java modules
+- Uses custom icons from `/icons/` directory
 
 ### `build.gradle`
 - Uses IntelliJ Plugin Development plugin version 1.17.4
+- Targets IntelliJ IDEA Ultimate 2023.3.6 with Java 17
 - Configures compatibility for IDE builds 233 to 242.*
 - Sets up test framework with JUnit Platform
 - Includes signing and publishing configuration for plugin distribution
+- Contains custom tasks: `preparePluginRepository` and `prepareRelease` for distribution
 
 ## Development Guidelines
 
