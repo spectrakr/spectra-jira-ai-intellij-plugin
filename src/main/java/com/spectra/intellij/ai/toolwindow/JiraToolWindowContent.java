@@ -41,6 +41,7 @@ public class JiraToolWindowContent {
     // 3-panel layout components
     private JList<JiraSprint> sprintList;
     private DefaultListModel<JiraSprint> sprintListModel;
+    private String currentSprintId;
     private JBTable issueTable;
     private DefaultTableModel issueTableModel;
     private DefaultTableModel originalIssueTableModel; // Store unfiltered data
@@ -48,6 +49,7 @@ public class JiraToolWindowContent {
     // Issue detail panel components
     private JPanel issueDetailPanel;
     private JTextField issueKeyField;
+    private JButton hamburgerMenuButton;
     private JTextField issueSummaryField;
     private boolean isSummaryEditing = false;
     private String originalSummaryValue = "";
@@ -55,6 +57,7 @@ public class JiraToolWindowContent {
     private boolean isStatusEditing = false;
     private String originalStatusValue = "";
     private JTextArea issueDescriptionField;
+    private JScrollPane descriptionScrollPane;
     private JLabel assigneeLabel;
     private JLabel reporterLabel;
     private JTextField storyPointsField;
@@ -337,14 +340,30 @@ public class JiraToolWindowContent {
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.anchor = GridBagConstraints.WEST;
         
-        // Issue Key (no label)
+        // Issue Key with hamburger menu
         gbc.gridx = 0; gbc.gridy = 0; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        JPanel issueKeyPanel = new JPanel(new BorderLayout());
+        
         issueKeyField = new JTextField();
         issueKeyField.setEditable(false);
         issueKeyField.setFont(issueKeyField.getFont().deriveFont(Font.BOLD, 14f));
         issueKeyField.setBackground(formPanel.getBackground());
         issueKeyField.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-        formPanel.add(issueKeyField, gbc);
+        issueKeyPanel.add(issueKeyField, BorderLayout.CENTER);
+        
+        // Hamburger menu button
+        hamburgerMenuButton = new JButton("☰");
+        hamburgerMenuButton.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 16));
+        hamburgerMenuButton.setPreferredSize(new Dimension(30, 30));
+        hamburgerMenuButton.setMargin(new Insets(2, 2, 2, 2));
+        hamburgerMenuButton.setBorderPainted(false);
+        hamburgerMenuButton.setFocusPainted(false);
+        hamburgerMenuButton.setContentAreaFilled(false);
+        hamburgerMenuButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        setupHamburgerMenu();
+        issueKeyPanel.add(hamburgerMenuButton, BorderLayout.EAST);
+        
+        formPanel.add(issueKeyPanel, gbc);
         
         // Summary (no label) - with inline edit capability
         gbc.gridx = 0; gbc.gridy = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0; gbc.gridwidth = 2;
@@ -370,7 +389,7 @@ public class JiraToolWindowContent {
         issueDescriptionField.setWrapStyleWord(true);
         issueDescriptionField.setRows(4);
         setupInlineEditForDescription();
-        JScrollPane descriptionScrollPane = new JScrollPane(issueDescriptionField);
+        descriptionScrollPane = new JScrollPane(issueDescriptionField);
         descriptionScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         descriptionScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         descriptionPanel.add(descriptionScrollPane, BorderLayout.CENTER);
@@ -644,8 +663,20 @@ public class JiraToolWindowContent {
         isDescriptionEditing = false;
         issueDescriptionField.setEditable(false);
         issueDescriptionField.setFocusable(true); // Keep focusable to show cursor on hover
-        issueDescriptionField.setBackground(UIManager.getColor("TextArea.background"));
+        
+        // Make it look like plain text instead of a textarea
+        issueDescriptionField.setBackground(UIManager.getColor("Panel.background"));
+        issueDescriptionField.setBorder(null);
+        issueDescriptionField.setOpaque(false);
         issueDescriptionField.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        
+        // Hide scroll pane border to make it look like plain text
+        if (descriptionScrollPane != null) {
+            descriptionScrollPane.setBorder(null);
+            descriptionScrollPane.setOpaque(false);
+            descriptionScrollPane.getViewport().setOpaque(false);
+        }
+        
         if (descriptionButtonPanel != null) {
             descriptionButtonPanel.setVisible(false);
         }
@@ -658,8 +689,19 @@ public class JiraToolWindowContent {
         originalDescriptionValue = issueDescriptionField.getText();
         issueDescriptionField.setEditable(true);
         issueDescriptionField.setFocusable(true);
+        
+        // Restore textarea appearance for editing
         issueDescriptionField.setBackground(UIManager.getColor("TextArea.background"));
+        issueDescriptionField.setBorder(UIManager.getBorder("TextField.border"));
+        issueDescriptionField.setOpaque(true);
         issueDescriptionField.setCursor(Cursor.getPredefinedCursor(Cursor.TEXT_CURSOR));
+        
+        // Restore scroll pane border and appearance for editing
+        if (descriptionScrollPane != null) {
+            descriptionScrollPane.setBorder(UIManager.getBorder("ScrollPane.border"));
+            descriptionScrollPane.setOpaque(true);
+            descriptionScrollPane.getViewport().setOpaque(true);
+        }
         
         // Do not automatically focus or set caret position
         // Let user click where they want the cursor to be
@@ -737,6 +779,77 @@ public class JiraToolWindowContent {
                 });
                 return null;
             });
+    }
+    
+    private void setupHamburgerMenu() {
+        hamburgerMenuButton.addActionListener(e -> showHamburgerMenu());
+        
+        // Show/hide button based on whether an issue is selected
+        hamburgerMenuButton.setVisible(false);
+    }
+    
+    private void showHamburgerMenu() {
+        if (currentEditingIssue == null) return;
+        
+        JPopupMenu popupMenu = new JPopupMenu();
+        
+        // Delete menu item
+        JMenuItem deleteItem = new JMenuItem("삭제");
+        deleteItem.setForeground(Color.RED);
+        deleteItem.addActionListener(e -> deleteCurrentIssue());
+        popupMenu.add(deleteItem);
+        
+        // Show popup menu below the hamburger button
+        popupMenu.show(hamburgerMenuButton, 0, hamburgerMenuButton.getHeight());
+    }
+    
+    private void deleteCurrentIssue() {
+        if (currentEditingIssue == null) return;
+        
+        // Show confirmation dialog
+        int result = Messages.showYesNoDialog(
+            project,
+            currentEditingIssue.getKey() + " 이슈를 정말 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.",
+            "이슈 삭제 확인",
+            "삭제",
+            "취소",
+            Messages.getQuestionIcon()
+        );
+        
+        if (result == Messages.YES) {
+            performIssueDelete();
+        }
+    }
+    
+    private void performIssueDelete() {
+        if (currentEditingIssue == null) return;
+        
+        String issueKey = currentEditingIssue.getKey();
+        updateStatus("이슈 삭제 중: " + issueKey);
+        
+        JiraService jiraService = getConfiguredJiraService();
+        jiraService.deleteIssueAsync(issueKey)
+            .thenRun(() -> {
+                SwingUtilities.invokeLater(() -> {
+                    updateStatus("이슈 삭제 완료: " + issueKey);
+                    clearIssueDetail();
+                    refreshCurrentSprintIssues(); // Refresh the issue list
+                });
+            })
+            .exceptionally(throwable -> {
+                SwingUtilities.invokeLater(() -> {
+                    String errorMessage = "이슈 삭제 중 오류가 발생했습니다";
+                    updateStatus("이슈 삭제 실패: " + errorMessage);
+                    Messages.showErrorDialog(project, "이슈 삭제에 실패했습니다: " + errorMessage, "삭제 오류");
+                });
+                return null;
+            });
+    }
+    
+    private void refreshCurrentSprintIssues() {
+        if (currentSprintId != null) {
+            loadSprintIssues(currentSprintId);
+        }
     }
     
     private void setupInlineEditForStoryPoints() {
@@ -1148,6 +1261,7 @@ public class JiraToolWindowContent {
     }
     
     private void loadSprintIssues(String sprintId, String preserveSelectedIssueKey) {
+        this.currentSprintId = sprintId; // Track current sprint
         updateStatus("Loading issues from sprint: " + sprintId + "...");
         
         JiraService jiraService = getConfiguredJiraService();
@@ -1345,6 +1459,9 @@ public class JiraToolWindowContent {
         
         storyPointsField.setEnabled(true);
         setStoryPointsDisplayMode(); // Set to display mode for inline editing
+        
+        // Show hamburger menu when issue is loaded
+        hamburgerMenuButton.setVisible(true);
     }
     
     
@@ -1376,6 +1493,9 @@ public class JiraToolWindowContent {
         setStoryPointsDisplayMode(); // Ensure proper display mode when disabled
         
         assigneeLabel.setEnabled(false);
+        
+        // Hide hamburger menu when no issue is selected
+        hamburgerMenuButton.setVisible(false);
     }
     
     private void setupAssigneeLabelHandlers() {
@@ -1453,7 +1573,11 @@ public class JiraToolWindowContent {
         
         // Enable hover selection for better user experience
         userList.putClientProperty("List.mouseHoverSelection", true);
-        userList.setSelectionBackground(new Color(220, 220, 220)); // Light gray for hover
+        userList.setSelectionBackground(UIManager.getColor("List.selectionBackground"));
+        userList.setSelectionForeground(UIManager.getColor("List.selectionForeground"));
+        
+        // Ensure selection is always visible
+        userList.setFocusable(true);
         
         // Custom renderer with enhanced visual feedback
         userList.setCellRenderer(new DefaultListCellRenderer() {
@@ -1522,6 +1646,12 @@ public class JiraToolWindowContent {
         // Initialize the list with all options
         updateUserList(listModel, allUsers, "");
         
+        // Set initial selection to first item if available
+        if (listModel.getSize() > 0) {
+            userList.setSelectedIndex(0);
+            userList.ensureIndexIsVisible(0);
+        }
+        
         // Add search functionality
         searchField.getDocument().addDocumentListener(new DocumentListener() {
             @Override
@@ -1549,21 +1679,53 @@ public class JiraToolWindowContent {
             }
         });
         
-        // Add Enter key support to search field
+        // Add keyboard navigation support to search field
         searchField.addKeyListener(new KeyListener() {
             @Override
             public void keyPressed(KeyEvent e) {
                 if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                    // Select first item in the list if available
+                    // Select currently selected item in the list if available
                     if (listModel.getSize() > 0) {
-                        userList.setSelectedIndex(0);
+                        int selectedIndex = userList.getSelectedIndex();
+                        if (selectedIndex == -1) {
+                            userList.setSelectedIndex(0);
+                        }
                         selectUser(userList);
                     }
                 } else if (e.getKeyCode() == KeyEvent.VK_DOWN) {
-                    // Move focus to list when arrow down is pressed
+                    // Move focus to list and navigate down
                     if (listModel.getSize() > 0) {
                         userList.requestFocus();
-                        userList.setSelectedIndex(0);
+                        int selectedIndex = userList.getSelectedIndex();
+                        if (selectedIndex == -1) {
+                            userList.setSelectedIndex(0);
+                        } else {
+                            int nextIndex = Math.min(selectedIndex + 1, listModel.getSize() - 1);
+                            userList.setSelectedIndex(nextIndex);
+                        }
+                        userList.ensureIndexIsVisible(userList.getSelectedIndex());
+                    }
+                } else if (e.getKeyCode() == KeyEvent.VK_UP) {
+                    // Move focus to list and navigate up
+                    if (listModel.getSize() > 0) {
+                        userList.requestFocus();
+                        int selectedIndex = userList.getSelectedIndex();
+                        if (selectedIndex == -1) {
+                            userList.setSelectedIndex(listModel.getSize() - 1);
+                        } else {
+                            int prevIndex = Math.max(selectedIndex - 1, 0);
+                            userList.setSelectedIndex(prevIndex);
+                        }
+                        userList.ensureIndexIsVisible(userList.getSelectedIndex());
+                    }
+                } else if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    // Close popup on Escape
+                    Component comp = searchField;
+                    while (comp != null && !(comp instanceof JPopupMenu)) {
+                        comp = comp.getParent();
+                    }
+                    if (comp instanceof JPopupMenu) {
+                        ((JPopupMenu) comp).setVisible(false);
                     }
                 }
             }
@@ -1590,6 +1752,28 @@ public class JiraToolWindowContent {
             public void keyPressed(KeyEvent e) {
                 if (e.getKeyCode() == KeyEvent.VK_ENTER) {
                     selectUser(userList);
+                } else if (e.getKeyCode() == KeyEvent.VK_UP) {
+                    // Handle UP arrow key
+                    int selectedIndex = userList.getSelectedIndex();
+                    if (selectedIndex > 0) {
+                        userList.setSelectedIndex(selectedIndex - 1);
+                        userList.ensureIndexIsVisible(selectedIndex - 1);
+                    } else if (selectedIndex == 0) {
+                        // Stay at top, but ensure it's visible
+                        userList.ensureIndexIsVisible(0);
+                    }
+                    e.consume(); // Prevent default behavior
+                } else if (e.getKeyCode() == KeyEvent.VK_DOWN) {
+                    // Handle DOWN arrow key
+                    int selectedIndex = userList.getSelectedIndex();
+                    if (selectedIndex < listModel.getSize() - 1) {
+                        userList.setSelectedIndex(selectedIndex + 1);
+                        userList.ensureIndexIsVisible(selectedIndex + 1);
+                    } else if (selectedIndex == listModel.getSize() - 1) {
+                        // Stay at bottom, but ensure it's visible
+                        userList.ensureIndexIsVisible(listModel.getSize() - 1);
+                    }
+                    e.consume(); // Prevent default behavior
                 } else if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
                     // Close popup on Escape
                     Component comp = userList;
@@ -1599,6 +1783,10 @@ public class JiraToolWindowContent {
                     if (comp instanceof JPopupMenu) {
                         ((JPopupMenu) comp).setVisible(false);
                     }
+                } else if (e.getKeyCode() == KeyEvent.VK_BACK_SPACE) {
+                    // Return focus to search field for backspace
+                    searchField.requestFocus();
+                    searchField.dispatchEvent(e);
                 }
             }
             

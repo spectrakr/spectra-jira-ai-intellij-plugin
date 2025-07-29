@@ -1052,4 +1052,32 @@ public class JiraService {
             }
         }
     }
+    
+    public CompletableFuture<Void> deleteIssueAsync(String issueKey) {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                deleteIssue(issueKey);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+    
+    private void deleteIssue(String issueKey) throws IOException {
+        String url = baseUrl + "rest/api/" + JIRA_API_VERSION + "/issue/" + issueKey;
+        
+        Request request = new Request.Builder()
+            .url(url)
+            .delete()
+            .header("Authorization", Credentials.basic(username, apiToken))
+            .header("Content-Type", "application/json")
+            .build();
+        
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String responseBody = response.body() != null ? response.body().string() : "No response body";
+                throw new IOException("Failed to delete issue: " + response.code() + " - " + responseBody);
+            }
+        }
+    }
 }
