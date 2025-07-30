@@ -777,7 +777,7 @@ public class JiraIssueDetailDialog extends DialogWrapper {
         private void updateDisplayText() {
             System.out.println("__ updateDisplayText");
             if (text.isEmpty()) {
-                displayLabel.setText("<html><i style='color: #999;'>Click to add description...</i></html>");
+                displayLabel.setText("<html><i style='color: #999;'>설명 편집</i></html>");
             } else {
                 // Convert line breaks to HTML
                 String htmlText = text.replace("\n", "<br>");

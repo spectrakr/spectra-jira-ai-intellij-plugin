@@ -76,6 +76,16 @@ public class JiraService {
         });
     }
 
+    public CompletableFuture<List<JiraIssue>> getEpicsAsync(String boardId) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return getEpics(boardId);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to fetch epics", e);
+            }
+        });
+    }
+
     public List<JiraSprint> getSprints(String boardId) throws IOException {
         String url = baseUrl + "rest/agile/" + AGILE_API_VERSION + "/board/" + boardId + "/sprint";
         logRequest("GET", url);
@@ -108,6 +118,59 @@ public class JiraService {
         }
     }
 
+    public List<JiraIssue> getEpics(String boardId) throws IOException {
+        String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/search";
+        
+        // JQL to get Epics from project
+        String jql = "project = " + getProjectKey() + " AND issuetype = Epic ORDER BY updated DESC";
+        
+        JsonObject requestBody = new JsonObject();
+        requestBody.addProperty("jql", jql);
+        requestBody.addProperty("startAt", 0);
+        requestBody.addProperty("maxResults", 50);
+        
+        // Specify fields to retrieve
+        JsonArray fields = new JsonArray();
+        fields.add("summary");
+        requestBody.add("fields", fields);
+        
+        RequestBody body = RequestBody.create(
+            gson.toJson(requestBody),
+            MediaType.parse("application/json")
+        );
+        
+        logRequest("POST", url, gson.toJson(requestBody));
+        
+        Request request = buildRequest(url).newBuilder()
+            .post(body)
+            .build();
+        
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("Failed to get epics: " + response.code());
+            }
+            
+            String responseBody = response.body() != null ? response.body().string() : "{}";
+            JsonObject responseJson = gson.fromJson(responseBody, JsonObject.class);
+            JsonArray epicsArray = responseJson.getAsJsonArray("issues");
+            
+            List<JiraIssue> epics = new ArrayList<>();
+            for (int i = 0; i < epicsArray.size(); i++) {
+                JsonObject epicJson = epicsArray.get(i).getAsJsonObject();
+                JiraIssue epic = new JiraIssue();
+                epic.setKey(epicJson.get("key").getAsString());
+                
+                JsonObject fieldsObj = epicJson.getAsJsonObject("fields");
+                epic.setSummary(fieldsObj.get("summary").getAsString());
+                epic.setIssueType("Epic");
+                
+                epics.add(epic);
+            }
+            
+            return epics;
+        }
+    }
+
     public CompletableFuture<List<JiraIssue>> getSprintIssuesAsync(String sprintId) {
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -135,7 +198,7 @@ public class JiraService {
             List<JiraIssue> issues = new ArrayList<>();
             for (int i = 0; i < issuesArray.size(); i++) {
                 JsonObject issueJson = issuesArray.get(i).getAsJsonObject();
-                JiraIssue issue = parseIssue(issueJson);
+                JiraIssue issue = parseIssueForList(issueJson);
                 issues.add(issue);
             }
             
@@ -469,6 +532,69 @@ public class JiraService {
         return issue;
     }
 
+    private JiraIssue parseIssueForList(JsonObject issueJson) {
+        JiraIssue issue = new JiraIssue();
+        issue.setKey(issueJson.get("key").getAsString());
+        
+        JsonObject fields = issueJson.getAsJsonObject("fields");
+        issue.setSummary(fields.get("summary").getAsString());
+        
+        if (fields.has("description") && !fields.get("description").isJsonNull()) {
+            // Handle both string and ADF (Atlassian Document Format) descriptions
+            try {
+                // Try to get as string first (for simple text descriptions)
+                issue.setDescription(fields.get("description").getAsString());
+            } catch (UnsupportedOperationException | IllegalStateException e) {
+                // If it's an ADF object, extract text content
+                try {
+                    JsonObject descriptionObj = fields.getAsJsonObject("description");
+                    String extractedText = extractTextFromADF(descriptionObj);
+                    issue.setDescription(extractedText);
+                } catch (Exception ex) {
+                    // If all parsing fails, set empty description
+                    System.err.println("Failed to parse description: " + ex.getMessage());
+                    issue.setDescription("");
+                }
+            }
+        }
+        
+        if (fields.has("status")) {
+            JsonObject status = fields.getAsJsonObject("status");
+            issue.setStatus(status.get("name").getAsString());
+        }
+        
+        if (fields.has("assignee") && !fields.get("assignee").isJsonNull()) {
+            JsonObject assignee = fields.getAsJsonObject("assignee");
+            issue.setAssignee(assignee.get("displayName").getAsString());
+        }
+        
+        if (fields.has("creator") && !fields.get("creator").isJsonNull()) {
+            JsonObject creator = fields.getAsJsonObject("creator");
+            issue.setReporter(creator.get("displayName").getAsString());
+        }
+        
+        if (fields.has("priority")) {
+            JsonObject priority = fields.getAsJsonObject("priority");
+            issue.setPriority(priority.get("name").getAsString());
+        }
+        
+        if (fields.has("issuetype")) {
+            JsonObject issuetype = fields.getAsJsonObject("issuetype");
+            issue.setIssueType(issuetype.get("name").getAsString());
+            issue.setIssueTypeId(issuetype.get("id").getAsString());
+        }
+        
+        // Parse story points from customfield_10105
+        if (fields.has("customfield_10105") && !fields.get("customfield_10105").isJsonNull()) {
+            issue.setStoryPoints(fields.get("customfield_10105").getAsDouble());
+        }
+        
+        // Skip parent/epic information for list views to improve performance
+        // Parent information will only be fetched in detail views
+        
+        return issue;
+    }
+
     private Request buildRequest(String url) {
         return new Request.Builder()
             .url(url)
@@ -617,7 +743,7 @@ public class JiraService {
             List<JiraIssue> issues = new ArrayList<>();
             for (int i = 0; i < issuesArray.size(); i++) {
                 JsonObject issueJson = issuesArray.get(i).getAsJsonObject();
-                JiraIssue issue = parseIssue(issueJson);
+                JiraIssue issue = parseIssueForList(issueJson);
                 issues.add(issue);
             }
             
@@ -682,6 +808,24 @@ public class JiraService {
         } else {
             // Explicitly set to null to clear the field
             fields.add("customfield_10105", null);
+        }
+        
+        // Update parent/epic link
+        if (issue.getParentKey() != null) {
+            if (issue.getParentKey().isEmpty()) {
+                // Remove parent/epic link by setting to null
+                fields.add("parent", null);
+                fields.add("customfield_10014", null);
+            } else {
+                // Set parent (for sub-tasks) or epic link (for stories/tasks)
+                // Try parent field first (for sub-tasks)
+                JsonObject parent = new JsonObject();
+                parent.addProperty("key", issue.getParentKey());
+                fields.add("parent", parent);
+                
+                // Also set epic link field (customfield_10014) for epic associations
+                fields.addProperty("customfield_10014", issue.getParentKey());
+            }
         }
         
         updatePayload.add("fields", fields);
@@ -1105,6 +1249,16 @@ public class JiraService {
         });
     }
 
+    public CompletableFuture<Void> updateIssueParentAsync(String issueKey, String parentKey) {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                updateIssueParent(issueKey, parentKey);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to update issue parent", e);
+            }
+        });
+    }
+
     public void updateIssueAssignee(String issueKey, String assigneeAccountId) throws IOException {
         String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/issue/" + issueKey;
         
@@ -1138,6 +1292,48 @@ public class JiraService {
 
             if (!response.isSuccessful()) {
                 throw new IOException("Failed to update issue assignee: " + response.code() + " - " + responseBody);
+            }
+        }
+    }
+
+    public void updateIssueParent(String issueKey, String parentKey) throws IOException {
+        String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/issue/" + issueKey;
+        
+        JsonObject updatePayload = new JsonObject();
+        JsonObject fields = new JsonObject();
+        
+        if (parentKey != null && !parentKey.isEmpty()) {
+            // Set parent (for sub-tasks) or epic link (for stories/tasks)
+            JsonObject parent = new JsonObject();
+            parent.addProperty("key", parentKey);
+            fields.add("parent", parent);
+            
+            // Also set epic link field (customfield_10014) for epic associations
+            fields.addProperty("customfield_10014", parentKey);
+        } else {
+            // Remove parent/epic link by setting to null
+            fields.add("parent", null);
+            fields.add("customfield_10014", null);
+        }
+        
+        updatePayload.add("fields", fields);
+        
+        RequestBody body = RequestBody.create(
+            gson.toJson(updatePayload),
+            MediaType.parse("application/json")
+        );
+
+        logRequest("PUT", url, gson.toJson(updatePayload));
+
+        Request request = buildRequest(url).newBuilder()
+            .put(body)
+            .build();
+        
+        try (Response response = client.newCall(request).execute()) {
+            String responseBody = response.body() != null ? response.body().string() : "";
+
+            if (!response.isSuccessful()) {
+                throw new IOException("Failed to update issue parent: " + response.code() + " - " + responseBody);
             }
         }
     }
