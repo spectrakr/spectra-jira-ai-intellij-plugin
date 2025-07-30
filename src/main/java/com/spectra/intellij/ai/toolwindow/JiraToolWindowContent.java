@@ -17,10 +17,16 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.awt.image.BufferedImage;
+import java.net.URL;
+import java.util.HashMap;
+import java.util.Map;
+import javax.imageio.ImageIO;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
@@ -150,7 +156,7 @@ public class JiraToolWindowContent {
         issuePanel.add(filterPanel, BorderLayout.NORTH);
         
         issueTableModel = new DefaultTableModel(
-            new String[]{"Key", "Summary", "Status", "Story Points", "Assignee"}, 0
+            new String[]{"Key", "Summary", "Status", "Story Points", "Priority", "Assignee"}, 0
         ) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -159,7 +165,7 @@ public class JiraToolWindowContent {
         };
         
         originalIssueTableModel = new DefaultTableModel(
-            new String[]{"Key", "Summary", "Status", "Story Points", "Assignee", "IssueType"}, 0
+            new String[]{"Key", "Summary", "Status", "Story Points", "Priority", "Assignee", "IssueType"}, 0
         ) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -173,6 +179,9 @@ public class JiraToolWindowContent {
         // Set custom renderer for Key column to show icons
         IssueTableCellRenderer renderer = new IssueTableCellRenderer();
         issueTable.getColumnModel().getColumn(0).setCellRenderer(renderer); // Key column
+        
+        // Set custom renderer for Priority column to show icons
+        issueTable.getColumnModel().getColumn(4).setCellRenderer(new PriorityTableCellRenderer()); // Priority column
         
         // Adjust column widths
         issueTable.getColumnModel().getColumn(0).setPreferredWidth(120);  // Key
@@ -190,9 +199,13 @@ public class JiraToolWindowContent {
         issueTable.getColumnModel().getColumn(3).setMaxWidth(80);
         issueTable.getColumnModel().getColumn(3).setMinWidth(80);
         
-        issueTable.getColumnModel().getColumn(4).setPreferredWidth(30);  // Assignee
-        issueTable.getColumnModel().getColumn(4).setMaxWidth(120);
-        issueTable.getColumnModel().getColumn(4).setMinWidth(80);
+        issueTable.getColumnModel().getColumn(4).setPreferredWidth(50);  // Priority
+        issueTable.getColumnModel().getColumn(4).setMaxWidth(50);
+        issueTable.getColumnModel().getColumn(4).setMinWidth(50);
+        
+        issueTable.getColumnModel().getColumn(5).setPreferredWidth(30);  // Assignee
+        issueTable.getColumnModel().getColumn(5).setMaxWidth(120);
+        issueTable.getColumnModel().getColumn(5).setMinWidth(80);
         
         // Set auto resize mode to make Summary column fill remaining space
         issueTable.setAutoResizeMode(JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS);
@@ -682,6 +695,11 @@ public class JiraToolWindowContent {
         issueDescriptionField.setOpaque(false);
         issueDescriptionField.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         
+        // Set default text color to match other text fields (unless it's placeholder text which should stay gray)
+        if (!"설명 편집".equals(issueDescriptionField.getText())) {
+            issueDescriptionField.setForeground(UIManager.getColor("TextField.foreground"));
+        }
+        
         // Hide scroll pane border to make it look like plain text
         if (descriptionScrollPane != null) {
             descriptionScrollPane.setBorder(null);
@@ -699,6 +717,15 @@ public class JiraToolWindowContent {
         
         isDescriptionEditing = true;
         originalDescriptionValue = issueDescriptionField.getText();
+        
+        // If showing placeholder text, clear it and use actual description from issue
+        if ("설명 편집".equals(originalDescriptionValue)) {
+            String actualDescription = currentEditingIssue.getDescription();
+            originalDescriptionValue = actualDescription != null ? actualDescription : "";
+            issueDescriptionField.setText(originalDescriptionValue);
+        }
+        
+        issueDescriptionField.setForeground(UIManager.getColor("TextField.foreground"));
         issueDescriptionField.setEditable(true);
         issueDescriptionField.setFocusable(true);
         
@@ -759,8 +786,14 @@ public class JiraToolWindowContent {
     private void cancelDescriptionEditing() {
         if (!isDescriptionEditing) return;
         
-        // Restore original value
-        issueDescriptionField.setText(originalDescriptionValue);
+        // Restore original value or placeholder
+        if (originalDescriptionValue == null || originalDescriptionValue.trim().isEmpty()) {
+            issueDescriptionField.setText("설명 편집");
+            issueDescriptionField.setForeground(Color.GRAY);
+        } else {
+            issueDescriptionField.setText(originalDescriptionValue);
+            issueDescriptionField.setForeground(UIManager.getColor("TextField.foreground"));
+        }
         setDescriptionDisplayMode();
     }
     
@@ -785,7 +818,13 @@ public class JiraToolWindowContent {
                 SwingUtilities.invokeLater(() -> {
                     // Restore old value on error
                     currentEditingIssue.setDescription(oldDescription);
-                    issueDescriptionField.setText(oldDescription != null ? oldDescription : "");
+                    if (oldDescription == null || oldDescription.trim().isEmpty()) {
+                        issueDescriptionField.setText("설명 편집");
+                        issueDescriptionField.setForeground(Color.GRAY);
+                    } else {
+                        issueDescriptionField.setText(oldDescription);
+                        issueDescriptionField.setForeground(UIManager.getColor("TextField.foreground"));
+                    }
                     updateStatus("Error updating description: " + throwable.getMessage());
                     Messages.showErrorDialog(project, "Failed to update description: " + throwable.getMessage(), "Update Error");
                 });
@@ -1034,13 +1073,14 @@ public class JiraToolWindowContent {
         
         // Clear current table
         issueTableModel.setRowCount(0);
+        priorityIconUrlMap.clear(); // Clear priority icon URL map
         IssueTableCellRenderer renderer = (IssueTableCellRenderer) issueTable.getColumnModel().getColumn(0).getCellRenderer();
         
         int displayRow = 0;
         for (int i = 0; i < originalIssueTableModel.getRowCount(); i++) {
 //            System.out.println("story point: " + originalIssueTableModel.getValueAt(i, 3));
-            String issueType = (String) originalIssueTableModel.getValueAt(i, 5); // IssueType column
-            String assignee = (String) originalIssueTableModel.getValueAt(i, 4);  // Assignee column
+            String issueType = (String) originalIssueTableModel.getValueAt(i, 6); // IssueType column
+            String assignee = (String) originalIssueTableModel.getValueAt(i, 5);  // Assignee column
             String status = (String) originalIssueTableModel.getValueAt(i, 2);    // Status column
             
             // Apply filters
@@ -1068,7 +1108,8 @@ public class JiraToolWindowContent {
                     originalIssueTableModel.getValueAt(i, 1), // Summary
                     originalIssueTableModel.getValueAt(i, 2), // Status
                     originalIssueTableModel.getValueAt(i, 3), // Story Points
-                    originalIssueTableModel.getValueAt(i, 4)  // Assignee
+                    originalIssueTableModel.getValueAt(i, 4), // Priority
+                    originalIssueTableModel.getValueAt(i, 5)  // Assignee
                 });
                 displayRow++;
             }
@@ -1283,6 +1324,7 @@ public class JiraToolWindowContent {
                     // Clear both tables
                     issueTableModel.setRowCount(0);
                     originalIssueTableModel.setRowCount(0);
+                    priorityIconUrlMap.clear();
                     
                     // Only clear issue detail if we're not preserving selection
                     if (preserveSelectedIssueKey == null) {
@@ -1306,6 +1348,8 @@ public class JiraToolWindowContent {
                         String assignee = issue.getAssignee() != null ? issue.getAssignee() : "";
                         String status = issue.getStatus() != null ? issue.getStatus() : "";
                         String summary = issue.getSummary() != null ? issue.getSummary() : "";
+                        String priority = issue.getPriority() != null ? issue.getPriority() : "";
+                        String priorityIconUrl = issue.getPriorityIconUrl();
                         
                         // Check if this is the issue we want to preserve selection for
                         if (preserveSelectedIssueKey != null && issue.getKey().equals(preserveSelectedIssueKey)) {
@@ -1318,6 +1362,7 @@ public class JiraToolWindowContent {
                             summary,
                             status,
                             storyPointsStr,
+                            priority,
                             assignee,
                             issueType // Hidden column for filtering
                         });
@@ -1325,12 +1370,18 @@ public class JiraToolWindowContent {
                         // Set issue type for renderer
                         renderer.setIssueTypeForRow(row, issueType);
                         
+                        // Store priority icon URL for this row
+                        if (priorityIconUrl != null) {
+                            priorityIconUrlMap.put(row, priorityIconUrl);
+                        }
+                        
                         // Add to display table
                         issueTableModel.addRow(new Object[]{
                             issue.getKey(),
                             summary,
                             status,
                             storyPointsStr,
+                            priority,
                             assignee
                         });
                         
@@ -1445,7 +1496,14 @@ public class JiraToolWindowContent {
     private void populateIssueForm(JiraIssue issue) {
         issueKeyField.setText(issue.getKey() != null ? issue.getKey() : "");
         issueSummaryField.setText(issue.getSummary() != null ? issue.getSummary() : "");
-        issueDescriptionField.setText(issue.getDescription() != null ? issue.getDescription() : "");
+        String description = issue.getDescription();
+        if (description == null || description.trim().isEmpty()) {
+            issueDescriptionField.setText("설명 편집");
+            issueDescriptionField.setForeground(Color.GRAY);
+        } else {
+            issueDescriptionField.setText(description);
+            issueDescriptionField.setForeground(UIManager.getColor("TextField.foreground"));
+        }
         
         // Populate detail fields
         // Initialize assignee label based on current issue assignee
@@ -1512,7 +1570,8 @@ public class JiraToolWindowContent {
         currentEditingIssue = null;
         issueKeyField.setText("이슈를 선택하세요");
         issueSummaryField.setText("");
-        issueDescriptionField.setText("");
+        issueDescriptionField.setText("설명 편집");
+        issueDescriptionField.setForeground(Color.GRAY);
         issueStatusComboBox.removeAllItems();
         
         // Clear detail fields
@@ -2499,5 +2558,104 @@ public class JiraToolWindowContent {
 
     public JComponent getContent() {
         return contentPanel;
+    }
+
+    // Map to store priority icon URLs by row index
+    private final Map<Integer, String> priorityIconUrlMap = new HashMap<>();
+    
+    // Custom renderer for Priority column to show priority icons
+    private class PriorityTableCellRenderer extends DefaultTableCellRenderer {
+        private final Map<String, ImageIcon> iconCache = new HashMap<>();
+        
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+            super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            
+            String priority = value != null ? value.toString() : "";
+            
+            // Try to get actual row index from filtered view
+            int actualRowIndex = getActualRowIndex(row);
+            String iconUrl = priorityIconUrlMap.get(actualRowIndex);
+            
+            if (iconUrl != null && !iconUrl.isEmpty()) {
+                ImageIcon icon = loadPriorityIcon(iconUrl);
+                if (icon != null) {
+                    setIcon(icon);
+                    setText(""); // Clear text when showing icon
+                } else {
+                    setIcon(null);
+                    setText(getPriorityFallbackIcon(priority));
+                }
+            } else {
+                setIcon(null);
+                setText(getPriorityFallbackIcon(priority));
+            }
+            
+            setHorizontalAlignment(SwingConstants.CENTER);
+            setToolTipText(priority); // Show full priority name on hover
+            
+            return this;
+        }
+        
+        private int getActualRowIndex(int displayRow) {
+            // Find the corresponding row in the original data model
+            if (displayRow < issueTableModel.getRowCount()) {
+                String issueKey = (String) issueTableModel.getValueAt(displayRow, 0);
+                for (int i = 0; i < originalIssueTableModel.getRowCount(); i++) {
+                    if (issueKey.equals(originalIssueTableModel.getValueAt(i, 0))) {
+                        return i;
+                    }
+                }
+            }
+            return displayRow;
+        }
+        
+        private ImageIcon loadPriorityIcon(String iconUrl) {
+            // Check cache first
+            if (iconCache.containsKey(iconUrl)) {
+                return iconCache.get(iconUrl);
+            }
+            
+            try {
+                // Load image from URL
+                URL url = new URL(iconUrl);
+                BufferedImage originalImage = ImageIO.read(url);
+                if (originalImage != null) {
+                    // Resize to 16x16 for table display
+                    Image scaledImage = originalImage.getScaledInstance(16, 16, Image.SCALE_SMOOTH);
+                    ImageIcon icon = new ImageIcon(scaledImage);
+                    iconCache.put(iconUrl, icon);
+                    return icon;
+                }
+            } catch (Exception e) {
+                System.err.println("Failed to load priority icon from: " + iconUrl + " - " + e.getMessage());
+            }
+            
+            return null;
+        }
+        
+        private String getPriorityFallbackIcon(String priority) {
+            if (priority == null || priority.isEmpty()) {
+                return "—"; // Em dash for unknown/no priority
+            }
+            
+            switch (priority.toLowerCase()) {
+                case "highest":
+                case "blocker":
+                    return "🔥"; // Fire emoji for highest
+                case "high":
+                    return "🔴"; // Red circle for high
+                case "medium":
+                case "normal":
+                    return "🟡"; // Yellow circle for medium
+                case "low":
+                    return "🟢"; // Green circle for low
+                case "lowest":
+                case "trivial":
+                    return "⬇️"; // Down arrow for lowest
+                default:
+                    return "⚪"; // White circle for unknown
+            }
+        }
     }
 }

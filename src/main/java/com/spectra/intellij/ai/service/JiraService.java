@@ -182,7 +182,7 @@ public class JiraService {
     }
 
     public List<JiraIssue> getSprintIssues(String sprintId) throws IOException {
-        String url = baseUrl + "rest/agile/" + AGILE_API_VERSION + "/sprint/" + sprintId + "/issue?maxResults=500";
+        String url = baseUrl + "rest/agile/" + AGILE_API_VERSION + "/sprint/" + sprintId + "/issue?maxResults=500&expand=renderedFields";
         logRequest("GET", url);
         Request request = buildRequest(url);
         
@@ -444,6 +444,7 @@ public class JiraService {
         
         if (fields.has("priority")) {
             JsonObject priority = fields.getAsJsonObject("priority");
+            System.out.println("___ priority : " + priority);
             issue.setPriority(priority.get("name").getAsString());
         }
         
@@ -461,7 +462,6 @@ public class JiraService {
         // Parse parent (Epic) information
         if (fields.has("parent") && !fields.get("parent").isJsonNull()) {
             JsonObject parent = fields.getAsJsonObject("parent");
-            System.out.println("___ parent: " + parent);
             issue.setParentKey(parent.get("key").getAsString());
             JsonObject parentFields = parent.getAsJsonObject("fields");
             if (parentFields.has("summary")) {
@@ -506,18 +506,29 @@ public class JiraService {
             }
         }
         
-        // For Epic issues, try to get Epic color from renderedFields (if available)
-        if ("Epic".equals(issue.getIssueType())) {
-            // Check if we have renderedFields in the current response
-            if (issueJson.has("renderedFields")) {
-                JsonObject renderedFields = issueJson.getAsJsonObject("renderedFields");
+        // Parse priority iconUrl and Epic color from renderedFields (if available)
+        if (issueJson.has("renderedFields")) {
+            JsonObject renderedFields = issueJson.getAsJsonObject("renderedFields");
+            
+            // Parse priority iconUrl from renderedFields
+            if (renderedFields.has("priority") && !renderedFields.get("priority").isJsonNull()) {
+                JsonObject renderedPriority = renderedFields.getAsJsonObject("priority");
+                if (renderedPriority.has("iconUrl")) {
+                    issue.setPriorityIconUrl(renderedPriority.get("iconUrl").getAsString());
+                }
+            }
+            
+            // For Epic issues, try to get Epic color from renderedFields
+            if ("Epic".equals(issue.getIssueType())) {
                 if (renderedFields.has("customfield_10013") && !renderedFields.get("customfield_10013").isJsonNull()) {
                     String epicColorCode = renderedFields.get("customfield_10013").getAsString();
                     String hexColor = mapGhxLabelToHex(epicColorCode);
                     issue.setEpicColor(hexColor);
                 }
-            } else {
-                // Make a separate API call to get the epic color
+            }
+        } else {
+            // For Epic issues, make a separate API call to get the epic color if renderedFields not available
+            if ("Epic".equals(issue.getIssueType())) {
                 try {
                     String epicColor = getEpicColor(issue.getKey());
                     if (epicColor != null) {
@@ -576,6 +587,9 @@ public class JiraService {
         if (fields.has("priority")) {
             JsonObject priority = fields.getAsJsonObject("priority");
             issue.setPriority(priority.get("name").getAsString());
+            if (priority.has("iconUrl")) {
+                issue.setPriorityIconUrl(priority.get("iconUrl").getAsString());
+            }
         }
         
         if (fields.has("issuetype")) {
@@ -587,6 +601,17 @@ public class JiraService {
         // Parse story points from customfield_10105
         if (fields.has("customfield_10105") && !fields.get("customfield_10105").isJsonNull()) {
             issue.setStoryPoints(fields.get("customfield_10105").getAsDouble());
+        }
+        
+        // Parse priority iconUrl from renderedFields (if available)
+        if (issueJson.has("renderedFields")) {
+            JsonObject renderedFields = issueJson.getAsJsonObject("renderedFields");
+            if (renderedFields.has("priority") && !renderedFields.get("priority").isJsonNull()) {
+                JsonObject renderedPriority = renderedFields.getAsJsonObject("priority");
+                if (renderedPriority.has("iconUrl")) {
+                    issue.setPriorityIconUrl(renderedPriority.get("iconUrl").getAsString());
+                }
+            }
         }
         
         // Skip parent/epic information for list views to improve performance
@@ -776,6 +801,10 @@ public class JiraService {
         if (StringUtils.isNotBlank(issue.getDescription())) {
             JsonObject description = createADFDescription(issue.getDescription());
             fields.add("description", description);
+        } else {
+            // Clear description with empty ADF structure
+            JsonObject emptyDescription = createADFDescription("");
+            fields.add("description", emptyDescription);
         }
         
         // Update assignee
@@ -922,6 +951,7 @@ public class JiraService {
             }
             
             String responseBody = response.body() != null ? response.body().string() : "{}";
+            System.out.println("getIssue: " + responseBody);
             JsonObject issueJson = gson.fromJson(responseBody, JsonObject.class);
             return parseIssue(issueJson);
         }
@@ -1158,8 +1188,9 @@ public class JiraService {
             JsonObject descriptionADF = createADFDescription(description);
             fields.add("description", descriptionADF);
         } else {
-            // Clear description
-            fields.add("description", null);
+            // Clear description with empty ADF structure
+            JsonObject emptyDescriptionADF = createADFDescription("");
+            fields.add("description", emptyDescriptionADF);
         }
         
         updatePayload.add("fields", fields);

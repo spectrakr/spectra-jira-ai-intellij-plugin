@@ -38,26 +38,18 @@ public class JiraIssueDetailDialog extends DialogWrapper {
         this.project = project;
         this.jiraService = jiraService;
         this.issue = issue;
-        System.out.println("___ JiraIssueDetailDialog constructor started for issue: " + issue.getKey());
         setTitle("Edit Issue: " + issue.getKey());
-        System.out.println("___ JiraIssueDetailDialog calling init()");
         init();
-        System.out.println("___ JiraIssueDetailDialog init() completed");
         loadData();
-        System.out.println("___ JiraIssueDetailDialog constructor completed");
     }
     
     @Override
     protected @Nullable JComponent createCenterPanel() {
-        System.out.println("___ JiraIssueDetailDialog createCenterPanel started");
         JPanel panel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
         
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.anchor = GridBagConstraints.WEST;
-        
-        System.out.println("___ JiraIssueDetailDialog main panel created: " + panel);
-        System.out.println("___ JiraIssueDetailDialog panel layout manager: " + panel.getLayout());
         
         // Issue Key (read-only)
         gbc.gridx = 0; gbc.gridy = 0;
@@ -72,13 +64,9 @@ public class JiraIssueDetailDialog extends DialogWrapper {
         gbc.gridx = 0; gbc.gridy = 1; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
         panel.add(new JLabel("Summary:"), gbc);
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
-        System.out.println("___ Creating InlineEditableField for summary with text: '" + (issue.getSummary() != null ? issue.getSummary() : "") + "'");
         summaryField = new InlineEditableField(issue.getSummary() != null ? issue.getSummary() : "");
-        System.out.println("___ InlineEditableField created: " + summaryField);
-        System.out.println("___ Adding summaryField to panel with constraints: " + gbc);
         panel.add(summaryField, gbc);
-        System.out.println("___ summaryField added to panel successfully");
-        
+
         // Issue Status
         gbc.gridx = 0; gbc.gridy = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
         panel.add(new JLabel("Status:"), gbc);
@@ -103,62 +91,20 @@ public class JiraIssueDetailDialog extends DialogWrapper {
         gbc.gridx = 1; gbc.fill = GridBagConstraints.BOTH; gbc.weightx = 1.0; gbc.weighty = 1.0;
         descriptionArea = new InlineEditableTextArea(issue.getDescription() != null ? issue.getDescription() : "");
         panel.add(descriptionArea, gbc);
-        
-        System.out.println("___ JiraIssueDetailDialog createCenterPanel completed");
-        System.out.println("___ JiraIssueDetailDialog final panel component count: " + panel.getComponentCount());
-        System.out.println("___ JiraIssueDetailDialog summaryField in panel: " + summaryField);
-        System.out.println("___ JiraIssueDetailDialog summaryField parent: " + summaryField.getParent());
-        
-        // Print all components in the panel
-        for (int i = 0; i < panel.getComponentCount(); i++) {
-            Component comp = panel.getComponent(i);
-            System.out.println("___ JiraIssueDetailDialog panel component[" + i + "]: " + comp + 
-                " (bounds: " + comp.getBounds() + ", visible: " + comp.isVisible() + ", enabled: " + comp.isEnabled() + ")");
-        }
-        
+
         return panel;
     }
     
     @Override
     public void show() {
-        System.out.println("___ JiraIssueDetailDialog show() called");
         super.show();
-        System.out.println("___ JiraIssueDetailDialog show() completed");
-        
+
         // Add global mouse event listener for debugging
         Toolkit.getDefaultToolkit().addAWTEventListener(new AWTEventListener() {
             @Override
             public void eventDispatched(AWTEvent event) {
-                if (event instanceof MouseEvent) {
-                    MouseEvent me = (MouseEvent) event;
-                    Component source = me.getComponent();
-                    
-                    // Only log events related to our summary field or its parent
-                    if (source == summaryField || (source != null && SwingUtilities.isDescendingFrom(source, summaryField))) {
-                        System.out.println("___ AWTEventListener MouseEvent: " + me.getID() + 
-                            " on " + source + " at " + me.getPoint());
-                    }
-                }
             }
         }, AWTEvent.MOUSE_EVENT_MASK | AWTEvent.MOUSE_MOTION_EVENT_MASK);
-        
-        // Check component states after dialog is shown
-        SwingUtilities.invokeLater(() -> {
-            System.out.println("___ JiraIssueDetailDialog post-show component check:");
-            System.out.println("___ JiraIssueDetailDialog summaryField bounds: " + summaryField.getBounds());
-            System.out.println("___ JiraIssueDetailDialog summaryField visible: " + summaryField.isVisible());
-            System.out.println("___ JiraIssueDetailDialog summaryField enabled: " + summaryField.isEnabled());
-            System.out.println("___ JiraIssueDetailDialog summaryField showing: " + summaryField.isShowing());
-            System.out.println("___ JiraIssueDetailDialog summaryField displayable: " + summaryField.isDisplayable());
-            
-            // Test if we can find the summary field by walking the component tree
-            Container parent = summaryField.getParent();
-            while (parent != null) {
-                System.out.println("___ JiraIssueDetailDialog parent: " + parent + 
-                    " (bounds: " + parent.getBounds() + ", visible: " + parent.isVisible() + ")");
-                parent = parent.getParent();
-            }
-        });
     }
     
     private JPanel createAssigneeSelectionPanel() {
@@ -266,7 +212,6 @@ public class JiraIssueDetailDialog extends DialogWrapper {
             })
             .exceptionally(throwable -> {
                 SwingUtilities.invokeLater(() -> {
-                    System.err.println("Failed to search users: " + throwable.getMessage());
                     assigneeSearchResults.setListData(new String[0]);
                 });
                 return null;
@@ -444,7 +389,6 @@ public class JiraIssueDetailDialog extends DialogWrapper {
         
         public InlineEditableField(String initialText) {
             this.text = initialText != null ? initialText : "";
-            System.out.println("___ InlineEditableField created with text: '" + this.text + "'");
             setLayout(new BorderLayout());
             
             // Enable all mouse events and make sure component is interactive
@@ -456,48 +400,9 @@ public class JiraIssueDetailDialog extends DialogWrapper {
             initComponents();
             setupMouseListener();
             showDisplayMode();
-            
-            // Add a simple test mouse listener to the panel itself
-            addMouseListener(new java.awt.event.MouseAdapter() {
-                @Override
-                public void mouseClicked(java.awt.event.MouseEvent e) {
-                    System.out.println("___ InlineEditableField PANEL mouseClicked: " + e.getPoint());
-                }
-                
-                @Override
-                public void mousePressed(java.awt.event.MouseEvent e) {
-                    System.out.println("___ InlineEditableField PANEL mousePressed: " + e.getPoint());
-                }
-                
-                @Override
-                public void mouseReleased(java.awt.event.MouseEvent e) {
-                    System.out.println("___ InlineEditableField PANEL mouseReleased: " + e.getPoint());
-                }
-                
-                @Override
-                public void mouseEntered(java.awt.event.MouseEvent e) {
-                    System.out.println("___ InlineEditableField PANEL mouseEntered: " + e.getPoint());
-                }
-                
-                @Override
-                public void mouseExited(java.awt.event.MouseEvent e) {
-                    System.out.println("___ InlineEditableField PANEL mouseExited: " + e.getPoint());
-                }
-            });
-            
-            // Also add to panel to catch any events
-            addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
-                @Override
-                public void mouseMoved(java.awt.event.MouseEvent e) {
-                    System.out.println("___ InlineEditableField PANEL mouseMoved: " + e.getPoint());
-                }
-            });
-            
-            System.out.println("___ InlineEditableField initialization completed");
         }
         
         private void initComponents() {
-            System.out.println("___ InlineEditableField initComponents started");
             displayLabel = new JLabel(text);
             displayLabel.setOpaque(true);
             displayLabel.setBackground(getBackground());
@@ -507,12 +412,7 @@ public class JiraIssueDetailDialog extends DialogWrapper {
             displayLabel.setEnabled(true);
             displayLabel.setVisible(true);
             displayLabel.setFocusable(false); // Labels don't need focus
-            
-            System.out.println("___ InlineEditableField displayLabel created: " + displayLabel);
-            System.out.println("___ InlineEditableField displayLabel bounds: " + displayLabel.getBounds());
-            System.out.println("___ InlineEditableField displayLabel enabled: " + displayLabel.isEnabled());
-            System.out.println("___ InlineEditableField displayLabel visible: " + displayLabel.isVisible());
-            
+
             editField = new JTextField(text);
             editField.setBorder(BorderFactory.createLineBorder(Color.BLUE, 2));
             
@@ -520,7 +420,6 @@ public class JiraIssueDetailDialog extends DialogWrapper {
             editField.addFocusListener(new java.awt.event.FocusAdapter() {
                 @Override
                 public void focusLost(java.awt.event.FocusEvent e) {
-                    System.out.println("___ InlineEditableField focusLost");
                     // Use SwingUtilities.invokeLater to avoid conflicts with other UI events
                     SwingUtilities.invokeLater(() -> {
                         if (isEditing && !editField.hasFocus()) {
@@ -528,16 +427,11 @@ public class JiraIssueDetailDialog extends DialogWrapper {
                         }
                     });
                 }
-                
-                @Override
-                public void focusGained(java.awt.event.FocusEvent e) {
-                    System.out.println("___ InlineEditableField focusGained");
-                }
+
             });
             
             // Add enter key listener to confirm edit
             editField.addActionListener(e -> {
-                System.out.println("___ InlineEditableField Enter key pressed");
                 exitEditMode();
             });
             
@@ -545,7 +439,6 @@ public class JiraIssueDetailDialog extends DialogWrapper {
             editField.addKeyListener(new java.awt.event.KeyAdapter() {
                 @Override
                 public void keyPressed(java.awt.event.KeyEvent e) {
-                    System.out.println("___ keypress");
                     if (e.getKeyCode() == java.awt.event.KeyEvent.VK_ESCAPE) {
                         cancelEdit();
                     }
@@ -554,18 +447,9 @@ public class JiraIssueDetailDialog extends DialogWrapper {
         }
         
         private void setupMouseListener() {
-            System.out.println("___ InlineEditableField setupMouseListener started");
-            System.out.println("___ InlineEditableField panel enabled: " + isEnabled());
-            System.out.println("___ InlineEditableField panel visible: " + isVisible());
-            System.out.println("___ InlineEditableField panel focusable: " + isFocusable());
-            
             MouseAdapter mouseAdapter = new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {
-                    System.out.println("___ InlineEditableField mouseClicked, isEditing: " + isEditing);
-                    System.out.println("___ InlineEditableField mouseClicked source: " + e.getSource());
-                    System.out.println("___ InlineEditableField mouseClicked button: " + e.getButton());
-                    System.out.println("___ InlineEditableField mouseClicked clickCount: " + e.getClickCount());
                     if (!isEditing) {
                         enterEditMode();
                     }
@@ -573,7 +457,6 @@ public class JiraIssueDetailDialog extends DialogWrapper {
                 
                 @Override
                 public void mouseEntered(MouseEvent e) {
-                    System.out.println("___ InlineEditableField mouseEntered, isEditing: " + isEditing);
                     if (!isEditing) {
                         displayLabel.setBackground(new Color(245, 245, 245)); // Light gray hover
                         displayLabel.setBorder(BorderFactory.createCompoundBorder(
@@ -587,7 +470,6 @@ public class JiraIssueDetailDialog extends DialogWrapper {
                 
                 @Override
                 public void mouseExited(MouseEvent e) {
-                    System.out.println("___ InlineEditableField mouseExited, isEditing: " + isEditing);
                     if (!isEditing) {
                         displayLabel.setBackground(getBackground());
                         displayLabel.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
@@ -598,32 +480,10 @@ public class JiraIssueDetailDialog extends DialogWrapper {
             };
             
             // Only add to the display label to avoid conflicts
-            System.out.println("___ InlineEditableField adding mouse listener to displayLabel");
-            System.out.println("___ InlineEditableField displayLabel before adding listener: " + displayLabel);
-            System.out.println("___ InlineEditableField displayLabel size: " + displayLabel.getSize());
-            System.out.println("___ InlineEditableField displayLabel preferredSize: " + displayLabel.getPreferredSize());
             displayLabel.addMouseListener(mouseAdapter);
-            System.out.println("___ InlineEditableField mouse listener added successfully");
-            
-            // Also add a simple test mouse listener to the label itself
-            displayLabel.addMouseListener(new java.awt.event.MouseAdapter() {
-                @Override
-                public void mouseClicked(java.awt.event.MouseEvent e) {
-                    System.out.println("___ InlineEditableField LABEL SIMPLE mouseClicked: " + e.getPoint());
-                }
-            });
-            
-            // Also add mouse motion listener for debugging
-            displayLabel.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
-                @Override
-                public void mouseMoved(java.awt.event.MouseEvent e) {
-                    System.out.println("___ InlineEditableField mouseMoved: " + e.getPoint());
-                }
-            });
         }
         
         private void enterEditMode() {
-            System.out.println("___ InlineEditableField enterEditMode called");
             isEditing = true;
             removeAll();
             add(editField, BorderLayout.CENTER);
@@ -632,11 +492,9 @@ public class JiraIssueDetailDialog extends DialogWrapper {
             editField.requestFocus();
             revalidate();
             repaint();
-            System.out.println("___ InlineEditableField enterEditMode completed");
         }
         
         private void exitEditMode() {
-            System.out.println("___ exitEditMode");
             if (isEditing) {
                 text = editField.getText();
                 displayLabel.setText(text);
@@ -651,22 +509,11 @@ public class JiraIssueDetailDialog extends DialogWrapper {
         }
         
         private void showDisplayMode() {
-            System.out.println("___ InlineEditableField showDisplayMode called");
             isEditing = false;
             removeAll();
             add(displayLabel, BorderLayout.CENTER);
-            System.out.println("___ InlineEditableField displayLabel added to panel");
-            System.out.println("___ InlineEditableField panel component count: " + getComponentCount());
-            System.out.println("___ InlineEditableField panel bounds: " + getBounds());
-            System.out.println("___ InlineEditableField displayLabel bounds after add: " + displayLabel.getBounds());
             revalidate();
             repaint();
-            System.out.println("___ InlineEditableField after revalidate/repaint:");
-            System.out.println("___ InlineEditableField panel bounds: " + getBounds());
-            System.out.println("___ InlineEditableField displayLabel bounds: " + displayLabel.getBounds());
-            System.out.println("___ InlineEditableField displayLabel visible: " + displayLabel.isVisible());
-            System.out.println("___ InlineEditableField panel visible: " + isVisible());
-            System.out.println("___ InlineEditableField showDisplayMode completed");
         }
         
         public String getText() {
@@ -692,9 +539,6 @@ public class JiraIssueDetailDialog extends DialogWrapper {
         
         @Override
         public void paintComponent(java.awt.Graphics g) {
-            System.out.println("___ InlineEditableField paintComponent called");
-            System.out.println("___ InlineEditableField paintComponent bounds: " + getBounds());
-            System.out.println("___ InlineEditableField paintComponent visible: " + isVisible());
             super.paintComponent(g);
         }
         
@@ -763,7 +607,6 @@ public class JiraIssueDetailDialog extends DialogWrapper {
             editArea.addKeyListener(new java.awt.event.KeyAdapter() {
                 @Override
                 public void keyPressed(java.awt.event.KeyEvent e) {
-                    System.out.println("__ keyPressed");
                     if (e.getKeyCode() == java.awt.event.KeyEvent.VK_ESCAPE) {
                         cancelEdit();
                     } else if (e.getKeyCode() == java.awt.event.KeyEvent.VK_ENTER && e.isControlDown()) {
@@ -775,7 +618,6 @@ public class JiraIssueDetailDialog extends DialogWrapper {
         }
         
         private void updateDisplayText() {
-            System.out.println("__ updateDisplayText");
             if (text.isEmpty()) {
                 displayLabel.setText("<html><i style='color: #999;'>설명 편집</i></html>");
             } else {
@@ -789,7 +631,6 @@ public class JiraIssueDetailDialog extends DialogWrapper {
             MouseAdapter mouseAdapter = new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {
-                    System.out.println("___ mouseClicked");
                     if (!isEditing) {
                         enterEditMode();
                     }
@@ -797,7 +638,6 @@ public class JiraIssueDetailDialog extends DialogWrapper {
                 
                 @Override
                 public void mouseEntered(MouseEvent e) {
-                    System.out.println("___ mouseEntered");
                     if (!isEditing) {
                         displayLabel.setBackground(new Color(240, 245, 255)); // Light blue hover
                         displayLabel.setBorder(BorderFactory.createCompoundBorder(
