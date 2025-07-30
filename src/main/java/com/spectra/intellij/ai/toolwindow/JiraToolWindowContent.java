@@ -63,6 +63,7 @@ public class JiraToolWindowContent {
     private JTextField storyPointsField;
     private boolean isStoryPointsEditing = false;
     private String originalStoryPointsValue = "";
+    private JLabel epicLabel;
     private boolean isDescriptionEditing = false;
     private String originalDescriptionValue = "";
     private JPanel descriptionButtonPanel;
@@ -439,8 +440,17 @@ public class JiraToolWindowContent {
         reporterLabel = new JLabel();
         detailsPanel.add(reporterLabel, detailGbc);
         
-        // Story Points
+        // Epic (상위항목)
         detailGbc.gridx = 0; detailGbc.gridy = 2; detailGbc.fill = GridBagConstraints.NONE; detailGbc.weightx = 0;
+        detailsPanel.add(new JLabel("상위항목:"), detailGbc);
+        detailGbc.gridx = 1; detailGbc.fill = GridBagConstraints.HORIZONTAL; detailGbc.weightx = 1.0;
+        epicLabel = new JLabel("없음");
+        epicLabel.setOpaque(true);
+        epicLabel.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
+        detailsPanel.add(epicLabel, detailGbc);
+        
+        // Story Points
+        detailGbc.gridx = 0; detailGbc.gridy = 3; detailGbc.fill = GridBagConstraints.NONE; detailGbc.weightx = 0;
         detailsPanel.add(new JLabel("Story Points:"), detailGbc);
         detailGbc.gridx = 1; detailGbc.fill = GridBagConstraints.HORIZONTAL; detailGbc.weightx = 1.0;
         storyPointsField = new JTextField();
@@ -1443,6 +1453,36 @@ public class JiraToolWindowContent {
             assigneeLabel.setText("할당되지 않음");
         }
         reporterLabel.setText(issue.getReporter() != null ? issue.getReporter() : "없음");
+        
+        // Populate Epic information
+        if (issue.getParentKey() != null && issue.getParentSummary() != null) {
+            String epicText = issue.getParentKey() + " " + issue.getParentSummary();
+            epicLabel.setText(epicText);
+            
+            // Apply colored background if Epic color is available
+            if (issue.getEpicColor() != null) {
+                try {
+                    Color epicColor = Color.decode(issue.getEpicColor());
+                    epicLabel.setBackground(epicColor);
+                    // Set text color based on background brightness
+                    int brightness = (int) (0.299 * epicColor.getRed() + 0.587 * epicColor.getGreen() + 0.114 * epicColor.getBlue());
+                    epicLabel.setForeground(brightness > 128 ? Color.BLACK : Color.WHITE);
+                } catch (NumberFormatException e) {
+                    // If color parsing fails, use default background
+                    epicLabel.setBackground(UIManager.getColor("Label.background"));
+                    epicLabel.setForeground(UIManager.getColor("Label.foreground"));
+                }
+            } else {
+                // Use default Epic color
+                epicLabel.setBackground(new Color(230, 230, 250)); // Light lavender
+                epicLabel.setForeground(Color.BLACK);
+            }
+        } else {
+            epicLabel.setText("없음");
+            epicLabel.setBackground(UIManager.getColor("Label.background"));
+            epicLabel.setForeground(UIManager.getColor("Label.foreground"));
+        }
+        
         storyPointsField.setText(issue.getStoryPoints() != null ? issue.getStoryPoints().toString() : "");
         
         // Enable editing controls and set display modes for inline editing
@@ -1475,6 +1515,9 @@ public class JiraToolWindowContent {
         // Clear detail fields
         assigneeLabel.setText("할당되지 않음");
         reporterLabel.setText("");
+        epicLabel.setText("없음");
+        epicLabel.setBackground(UIManager.getColor("Label.background"));
+        epicLabel.setForeground(UIManager.getColor("Label.foreground"));
         storyPointsField.setText("");
         
         // Disable editing controls and set display modes

@@ -13,6 +13,9 @@ public class JiraIssue {
     private String sprintId;
     private String sprintName;
     private Double storyPoints;
+    private String parentKey;
+    private String parentSummary;
+    private String epicColor;
 
     public JiraIssue() {}
 
@@ -116,6 +119,30 @@ public class JiraIssue {
 
     public void setStoryPoints(Double storyPoints) {
         this.storyPoints = storyPoints;
+    }
+
+    public String getParentKey() {
+        return parentKey;
+    }
+
+    public void setParentKey(String parentKey) {
+        this.parentKey = parentKey;
+    }
+
+    public String getParentSummary() {
+        return parentSummary;
+    }
+
+    public void setParentSummary(String parentSummary) {
+        this.parentSummary = parentSummary;
+    }
+
+    public String getEpicColor() {
+        return epicColor;
+    }
+
+    public void setEpicColor(String epicColor) {
+        this.epicColor = epicColor;
     }
 
     @Override

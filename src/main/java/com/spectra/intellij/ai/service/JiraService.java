@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class JiraService {
     private static final String JIRA_API_VERSION = "2";
@@ -26,6 +27,24 @@ public class JiraService {
     private String username;
     private String apiToken;
     private String projectKey;
+    
+    // Epic color cache - key: epicKey, value: CacheEntry
+    private final Map<String, EpicColorCacheEntry> epicColorCache = new ConcurrentHashMap<>();
+    private static final long CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes TTL
+    
+    private static class EpicColorCacheEntry {
+        final String color;
+        final long timestamp;
+        
+        EpicColorCacheEntry(String color) {
+            this.color = color;
+            this.timestamp = System.currentTimeMillis();
+        }
+        
+        boolean isExpired() {
+            return System.currentTimeMillis() - timestamp > CACHE_TTL_MS;
+        }
+    }
 
     public JiraService() {
         this.client = new OkHttpClient();
@@ -376,6 +395,77 @@ public class JiraService {
             issue.setStoryPoints(fields.get("customfield_10105").getAsDouble());
         }
         
+        // Parse parent (Epic) information
+        if (fields.has("parent") && !fields.get("parent").isJsonNull()) {
+            JsonObject parent = fields.getAsJsonObject("parent");
+            System.out.println("___ parent: " + parent);
+            issue.setParentKey(parent.get("key").getAsString());
+            JsonObject parentFields = parent.getAsJsonObject("fields");
+            if (parentFields.has("summary")) {
+                issue.setParentSummary(parentFields.get("summary").getAsString());
+            }
+            // Get Epic color by making a separate API call to get renderedFields
+            try {
+                String epicColor = getEpicColor(parent.get("key").getAsString());
+                if (epicColor != null) {
+                    issue.setEpicColor(epicColor);
+                }
+            } catch (Exception e) {
+                System.err.println("Failed to fetch Epic color for " + parent.get("key").getAsString() + ": " + e.getMessage());
+            }
+        }
+        
+        // Also check for Epic Link (customfield_10014) for issues linked to Epics
+        if (fields.has("customfield_10014") && !fields.get("customfield_10014").isJsonNull()) {
+            // Epic Link field contains the Epic key
+            String epicKey = fields.get("customfield_10014").getAsString();
+            if (issue.getParentKey() == null) { // Only set if parent wasn't already found
+                issue.setParentKey(epicKey);
+                // We'll need to fetch the Epic details separately for summary and color
+                try {
+                    JiraIssue epicIssue = getIssue(epicKey);
+                    if (epicIssue != null) {
+                        issue.setParentSummary(epicIssue.getSummary());
+                        // Get Epic color by making a separate API call
+                        try {
+                            String epicColor = getEpicColor(epicKey);
+                            if (epicColor != null) {
+                                issue.setEpicColor(epicColor);
+                            }
+                        } catch (Exception e) {
+                            System.err.println("Failed to fetch Epic color for " + epicKey + ": " + e.getMessage());
+                        }
+                    }
+                } catch (Exception e) {
+                    // If we can't fetch Epic details, just use the key
+                    System.err.println("Failed to fetch Epic details for " + epicKey + ": " + e.getMessage());
+                }
+            }
+        }
+        
+        // For Epic issues, try to get Epic color from renderedFields (if available)
+        if ("Epic".equals(issue.getIssueType())) {
+            // Check if we have renderedFields in the current response
+            if (issueJson.has("renderedFields")) {
+                JsonObject renderedFields = issueJson.getAsJsonObject("renderedFields");
+                if (renderedFields.has("customfield_10013") && !renderedFields.get("customfield_10013").isJsonNull()) {
+                    String epicColorCode = renderedFields.get("customfield_10013").getAsString();
+                    String hexColor = mapGhxLabelToHex(epicColorCode);
+                    issue.setEpicColor(hexColor);
+                }
+            } else {
+                // Make a separate API call to get the epic color
+                try {
+                    String epicColor = getEpicColor(issue.getKey());
+                    if (epicColor != null) {
+                        issue.setEpicColor(epicColor);
+                    }
+                } catch (Exception e) {
+                    System.err.println("Failed to fetch Epic color for " + issue.getKey() + ": " + e.getMessage());
+                }
+            }
+        }
+        
         return issue;
     }
 
@@ -678,7 +768,7 @@ public class JiraService {
     }
 
     public JiraIssue getIssue(String issueKey) throws IOException {
-        String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/issue/" + issueKey;
+        String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/issue/" + issueKey + "?expand=names,schema,renderedFields";
         logRequest("GET", url);
         Request request = buildRequest(url);
         
@@ -689,7 +779,6 @@ public class JiraService {
             
             String responseBody = response.body() != null ? response.body().string() : "{}";
             JsonObject issueJson = gson.fromJson(responseBody, JsonObject.class);
-//            System.out.println("__ issueJson: " + issueJson);
             return parseIssue(issueJson);
         }
     }
@@ -1078,6 +1167,76 @@ public class JiraService {
                 String responseBody = response.body() != null ? response.body().string() : "No response body";
                 throw new IOException("Failed to delete issue: " + response.code() + " - " + responseBody);
             }
+        }
+    }
+    
+    private String getEpicColor(String epicKey) throws IOException {
+        // Check cache first
+        EpicColorCacheEntry cacheEntry = epicColorCache.get(epicKey);
+        if (cacheEntry != null && !cacheEntry.isExpired()) {
+            return cacheEntry.color;
+        }
+        
+        // Cache miss or expired - fetch from API
+        String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/issue/" + epicKey + "?expand=names,schema,renderedFields";
+        logRequest("GET", url);
+        Request request = buildRequest(url);
+        
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("Failed to get epic color: " + response.code());
+            }
+            
+            String responseBody = response.body() != null ? response.body().string() : "{}";
+            JsonObject issueJson = gson.fromJson(responseBody, JsonObject.class);
+            
+            String epicColor = null;
+            if (issueJson.has("renderedFields")) {
+                JsonObject renderedFields = issueJson.getAsJsonObject("renderedFields");
+                if (renderedFields.has("customfield_10013") && !renderedFields.get("customfield_10013").isJsonNull()) {
+                    String epicColorCode = renderedFields.get("customfield_10013").getAsString();
+                    epicColor = mapGhxLabelToHex(epicColorCode);
+                }
+            }
+            
+            // Cache the result (even if null)
+            epicColorCache.put(epicKey, new EpicColorCacheEntry(epicColor));
+            
+            // Clean up expired entries periodically
+            cleanupExpiredCacheEntries();
+            
+            return epicColor;
+        }
+    }
+    
+    private void cleanupExpiredCacheEntries() {
+        // Only cleanup periodically to avoid performance impact
+        if (epicColorCache.size() > 100) {
+            epicColorCache.entrySet().removeIf(entry -> entry.getValue().isExpired());
+        }
+    }
+    
+    private String mapGhxLabelToHex(String ghxLabel) {
+        if (ghxLabel == null) {
+            return null;
+        }
+        
+        switch (ghxLabel) {
+            case "ghx-label-1": return "#243859";
+            case "ghx-label-2": return "#FA9920";
+            case "ghx-label-3": return "#FAC304";
+            case "ghx-label-4": return "#2A53CC";
+            case "ghx-label-5": return "#2AA3BF";
+            case "ghx-label-6": return "#58D8A4";
+            case "ghx-label-7": return "#8677D9";
+            case "ghx-label-8": return "#5244AA";
+            case "ghx-label-9": return "#FA7353";
+            case "ghx-label-10": return "#3884FF";
+            case "ghx-label-11": return "#34C7E6";
+            case "ghx-label-12": return "#6B778C";
+            case "ghx-label-13": return "#128759";
+            case "ghx-label-14": return "#DD350D";
+            default: return null;
         }
     }
 }
