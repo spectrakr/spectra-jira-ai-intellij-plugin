@@ -26,12 +26,18 @@ public class CreateIssueDialog extends DialogWrapper {
     private final JiraService jiraService;
     private final Project project;
     private Map<String, String> issueTypesMap; // name -> id mapping
+    private final JiraSprint preselectedSprint;
     
     
     public CreateIssueDialog(Project project, JiraService jiraService) {
+        this(project, jiraService, null);
+    }
+    
+    public CreateIssueDialog(Project project, JiraService jiraService, JiraSprint preselectedSprint) {
         super(project);
         this.project = project;
         this.jiraService = jiraService;
+        this.preselectedSprint = preselectedSprint;
         setTitle("Create Jira Issue");
         init();
         loadData();
@@ -177,24 +183,36 @@ public class CreateIssueDialog extends DialogWrapper {
                             }
                         }
                         
-                        // Restore recent sprint selection
-                        RecentJiraSettings recentSettings = RecentJiraSettings.getInstance();
-                        String lastSprintId = recentSettings.getLastUsedSprintId();
-                        if (!lastSprintId.isEmpty()) {
+                        // Prioritize preselected sprint, then recent sprint selection
+                        if (preselectedSprint != null) {
+                            // First priority: preselected sprint from tool window
                             for (int i = 0; i < sprintComboBox.getItemCount(); i++) {
                                 JiraSprint item = sprintComboBox.getItemAt(i);
-                                if (item.getId().equals(lastSprintId)) {
+                                if (item.getId().equals(preselectedSprint.getId())) {
                                     sprintComboBox.setSelectedItem(item);
                                     break;
                                 }
                             }
-                        } else if (currentSprint != null) {
-                            // Try to restore current selection if it exists
-                            for (int i = 0; i < sprintComboBox.getItemCount(); i++) {
-                                JiraSprint item = sprintComboBox.getItemAt(i);
-                                if (item.getId().equals(currentSprint.getId())) {
-                                    sprintComboBox.setSelectedItem(item);
-                                    break;
+                        } else {
+                            // Second priority: recent sprint selection
+                            RecentJiraSettings recentSettings = RecentJiraSettings.getInstance();
+                            String lastSprintId = recentSettings.getLastUsedSprintId();
+                            if (!lastSprintId.isEmpty()) {
+                                for (int i = 0; i < sprintComboBox.getItemCount(); i++) {
+                                    JiraSprint item = sprintComboBox.getItemAt(i);
+                                    if (item.getId().equals(lastSprintId)) {
+                                        sprintComboBox.setSelectedItem(item);
+                                        break;
+                                    }
+                                }
+                            } else if (currentSprint != null) {
+                                // Try to restore current selection if it exists
+                                for (int i = 0; i < sprintComboBox.getItemCount(); i++) {
+                                    JiraSprint item = sprintComboBox.getItemAt(i);
+                                    if (item.getId().equals(currentSprint.getId())) {
+                                        sprintComboBox.setSelectedItem(item);
+                                        break;
+                                    }
                                 }
                             }
                         }

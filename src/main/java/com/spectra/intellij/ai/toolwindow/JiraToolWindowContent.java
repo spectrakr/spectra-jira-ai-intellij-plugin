@@ -3,6 +3,7 @@ package com.spectra.intellij.ai.toolwindow;
 import com.google.gson.JsonObject;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.IconLoader;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.JBUI;
@@ -26,7 +27,6 @@ import java.awt.image.BufferedImage;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
-import javax.imageio.ImageIO;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
@@ -1188,7 +1188,8 @@ public class JiraToolWindowContent {
         }
         
         JiraService jiraService = getConfiguredJiraService();
-        CreateIssueDialog dialog = new CreateIssueDialog(project, jiraService);
+        JiraSprint selectedSprint = sprintList.getSelectedValue();
+        CreateIssueDialog dialog = new CreateIssueDialog(project, jiraService, selectedSprint);
         if (dialog.showAndGet()) {
             JiraIssue issue = dialog.getIssue();
             System.out.println("Creating issue:");
@@ -2184,6 +2185,18 @@ public class JiraToolWindowContent {
         // Enable mouse wheel scrolling
         scrollPane.getVerticalScrollBar().setUnitIncrement(16);
         scrollPane.getVerticalScrollBar().setBlockIncrement(64);
+        scrollPane.setWheelScrollingEnabled(true);
+        
+        // Add mouse wheel listener to ensure scrolling works in popup
+        scrollPane.addMouseWheelListener(e -> {
+            if (scrollPane.getVerticalScrollBar().isVisible()) {
+                JScrollBar scrollBar = scrollPane.getVerticalScrollBar();
+                int direction = e.getWheelRotation();
+                int increment = scrollBar.getUnitIncrement(direction);
+                int newValue = scrollBar.getValue() + (direction * increment * 3); // Multiply by 3 for faster scrolling
+                scrollBar.setValue(Math.max(0, Math.min(newValue, scrollBar.getMaximum() - scrollBar.getVisibleAmount())));
+            }
+        });
         
         dialogPanel.add(scrollPane, BorderLayout.CENTER);
         
@@ -2579,16 +2592,17 @@ public class JiraToolWindowContent {
             
             if (iconUrl != null && !iconUrl.isEmpty()) {
                 ImageIcon icon = loadPriorityIcon(iconUrl);
+
                 if (icon != null) {
                     setIcon(icon);
                     setText(""); // Clear text when showing icon
                 } else {
                     setIcon(null);
-                    setText(getPriorityFallbackIcon(priority));
+                    setText("-");
                 }
             } else {
                 setIcon(null);
-                setText(getPriorityFallbackIcon(priority));
+                setText("-");
             }
             
             setHorizontalAlignment(SwingConstants.CENTER);
@@ -2617,45 +2631,40 @@ public class JiraToolWindowContent {
             }
             
             try {
-                // Load image from URL
-                URL url = new URL(iconUrl);
-                BufferedImage originalImage = ImageIO.read(url);
-                if (originalImage != null) {
-                    // Resize to 16x16 for table display
-                    Image scaledImage = originalImage.getScaledInstance(16, 16, Image.SCALE_SMOOTH);
-                    ImageIcon icon = new ImageIcon(scaledImage);
-                    iconCache.put(iconUrl, icon);
-                    return icon;
+                // Extract filename from URL (e.g., medium_new.svg from https://enomix.atlassian.net/images/icons/priorities/medium_new.svg)
+                String filename = iconUrl.substring(iconUrl.lastIndexOf('/') + 1);
+                
+                // Load icon from local resources using IconLoader (handles SVG files properly)
+                String resourcePath = "/icons/" + filename;
+                
+                try {
+                    Icon icon = IconLoader.getIcon(resourcePath, getClass());
+                    if (icon != null) {
+                        // IconLoader can handle scaling automatically, but we need to ensure 16x16 size
+                        // Create a scaled ImageIcon for consistent table rendering
+                        BufferedImage bufferedImage = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
+                        Graphics2D g2d = bufferedImage.createGraphics();
+                        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                        
+                        // Scale and draw the icon
+                        icon.paintIcon(null, g2d, 0, 0);
+                        g2d.dispose();
+                        
+                        ImageIcon scaledIcon = new ImageIcon(bufferedImage);
+                        iconCache.put(iconUrl, scaledIcon);
+                        return scaledIcon;
+                    }
+                } catch (Exception iconLoadException) {
+                    System.err.println("IconLoader failed for: " + resourcePath + " - " + iconLoadException.getMessage());
                 }
+                
+                System.err.println("Priority icon resource not found: " + resourcePath);
             } catch (Exception e) {
-                System.err.println("Failed to load priority icon from: " + iconUrl + " - " + e.getMessage());
+                System.err.println("Failed to load priority icon from resources: " + iconUrl + " - " + e.getMessage());
             }
             
             return null;
-        }
-        
-        private String getPriorityFallbackIcon(String priority) {
-            if (priority == null || priority.isEmpty()) {
-                return "—"; // Em dash for unknown/no priority
-            }
-            
-            switch (priority.toLowerCase()) {
-                case "highest":
-                case "blocker":
-                    return "🔥"; // Fire emoji for highest
-                case "high":
-                    return "🔴"; // Red circle for high
-                case "medium":
-                case "normal":
-                    return "🟡"; // Yellow circle for medium
-                case "low":
-                    return "🟢"; // Green circle for low
-                case "lowest":
-                case "trivial":
-                    return "⬇️"; // Down arrow for lowest
-                default:
-                    return "⚪"; // White circle for unknown
-            }
         }
     }
 }
