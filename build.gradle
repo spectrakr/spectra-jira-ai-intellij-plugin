@@ -74,6 +74,12 @@ intellijPlatform {
     publishing {
         token = providers.environmentVariable("PUBLISH_TOKEN")
     }
+    
+    pluginVerification {
+        ides {
+            ide('IC', '2023.3.6')
+        }
+    }
 }
 
 tasks.withType(JavaCompile) {
