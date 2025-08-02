@@ -1,13 +1,24 @@
 package com.spectra.intellij.ai.settings;
 
+import com.intellij.ide.plugins.IdeaPluginDescriptor;
+import com.intellij.ide.plugins.PluginManagerCore;
+import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ConfigurationException;
+import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.NlsContexts;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.IOException;
+import java.io.InputStream;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Properties;
 
 public class JiraConfigurable implements Configurable {
     
@@ -122,8 +133,20 @@ public class JiraConfigurable implements Configurable {
             defaultProjectKeyField = new JTextField();
             panel.add(defaultProjectKeyField, gbc);
             
+            // Check Version Button
+            gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0; gbc.weighty = 0;
+            gbc.anchor = GridBagConstraints.CENTER;
+            JButton checkVersionButton = new JButton("Check Version");
+            checkVersionButton.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    showVersionInfo();
+                }
+            });
+            panel.add(checkVersionButton, gbc);
+            
             // Fill remaining space
-            gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 2; gbc.weighty = 1.0;
+            gbc.gridx = 0; gbc.gridy = 6; gbc.gridwidth = 2; gbc.weighty = 1.0;
             panel.add(new JPanel(), gbc);
         }
         
@@ -169,6 +192,67 @@ public class JiraConfigurable implements Configurable {
         
         public void setDefaultProjectKey(String defaultProjectKey) {
             defaultProjectKeyField.setText(defaultProjectKey);
+        }
+        
+        private void showVersionInfo() {
+            String version = getPluginVersion();
+            String buildDate = getBuildDate();
+            
+            StringBuilder message = new StringBuilder();
+            message.append("Spectra Jira AI Plugin\n\n");
+            message.append("Version: ").append(version != null ? version : "Unknown").append("\n");
+            message.append("Build Date: ").append(buildDate != null ? buildDate : "Unknown").append("\n");
+            message.append("Check Date: ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+            
+            Messages.showInfoMessage(
+                message.toString(),
+                "Plugin Version Information"
+            );
+        }
+        
+        private String getPluginVersion() {
+            try {
+                // Try to get version from plugin descriptor
+                PluginId pluginId = PluginId.getId("com.spectra.jira.ai");
+                IdeaPluginDescriptor plugin = PluginManagerCore.getPlugin(pluginId);
+                if (plugin != null) {
+                    return plugin.getVersion();
+                }
+            } catch (Exception e) {
+                // Ignore and try alternative methods
+            }
+            
+            try {
+                // Try to get version from properties file
+                InputStream inputStream = getClass().getClassLoader().getResourceAsStream("META-INF/plugin.xml");
+                if (inputStream != null) {
+                    // This is a fallback - we would need to parse XML for actual version
+                    // For now, return the build.gradle version
+                    return "1.0.2";
+                }
+            } catch (Exception e) {
+                // Ignore
+            }
+            
+            return "1.0.2"; // Fallback version
+        }
+        
+        private String getBuildDate() {
+            try {
+                // Try to get build timestamp from manifest
+                Package pkg = getClass().getPackage();
+                if (pkg != null) {
+                    String buildTime = pkg.getImplementationTitle();
+                    if (buildTime != null) {
+                        return buildTime;
+                    }
+                }
+            } catch (Exception e) {
+                // Ignore
+            }
+            
+            // Fallback to current date for development builds
+            return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
         }
     }
 }

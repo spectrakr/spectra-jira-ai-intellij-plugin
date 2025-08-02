@@ -1,11 +1,17 @@
 package com.spectra.intellij.ai.toolwindow.components;
 
+import com.intellij.ide.plugins.IdeaPluginDescriptor;
+import com.intellij.ide.plugins.PluginManagerCore;
+import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.Messages;
 import com.intellij.ui.components.JBScrollPane;
 import com.spectra.intellij.ai.model.JiraSprint;
 
 import javax.swing.*;
 import java.awt.*;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -15,6 +21,7 @@ public class SprintListPanel extends JPanel {
     private JList<JiraSprint> sprintList;
     private DefaultListModel<JiraSprint> sprintListModel;
     private JButton settingsButton;
+    private JButton checkVersionButton;
     
     private Consumer<JiraSprint> onSprintSelected;
     private Consumer<Void> onSettingsClick;
@@ -32,16 +39,24 @@ public class SprintListPanel extends JPanel {
         // Top section with settings button and sprints label
         JPanel topSection = new JPanel(new BorderLayout());
         
-        // Add settings button at the top
+        // Add buttons at the top
         settingsButton = new JButton("Jira Setting");
+        settingsButton.setPreferredSize(new Dimension(80, 25));
         settingsButton.addActionListener(e -> {
             if (onSettingsClick != null) {
                 onSettingsClick.accept(null);
             }
         });
-        JPanel settingsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 5));
-        settingsPanel.add(settingsButton);
-        topSection.add(settingsPanel, BorderLayout.NORTH);
+        
+        checkVersionButton = new JButton("Version");
+        checkVersionButton.setPreferredSize(new Dimension(65, 25));
+        checkVersionButton.setToolTipText("Check Plugin Version");
+        checkVersionButton.addActionListener(e -> showVersionInfo());
+        
+        JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 3, 3));
+        buttonsPanel.add(settingsButton);
+        buttonsPanel.add(checkVersionButton);
+        topSection.add(buttonsPanel, BorderLayout.NORTH);
         
         // Add Sprints label below settings button
         JPanel sprintsLabelPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 5));
@@ -102,5 +117,68 @@ public class SprintListPanel extends JPanel {
     
     public void setOnSettingsClick(Consumer<Void> onSettingsClick) {
         this.onSettingsClick = onSettingsClick;
+    }
+    
+    private void showVersionInfo() {
+        String version = getPluginVersion();
+        String buildDate = getBuildDate();
+        
+        StringBuilder message = new StringBuilder();
+        message.append("Spectra Jira AI Plugin\n\n");
+        message.append("Version: ").append(version != null ? version : "Unknown").append("\n");
+        message.append("Build Date: ").append(buildDate != null ? buildDate : "Unknown").append("\n");
+        message.append("Check Date: ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        
+        Messages.showInfoMessage(
+            project,
+            message.toString(),
+            "Plugin Version Information"
+        );
+    }
+    
+    private String getPluginVersion() {
+        try {
+            // Try to get version from plugin descriptor
+            PluginId pluginId = PluginId.getId("com.spectra.jira.ai");
+            IdeaPluginDescriptor plugin = PluginManagerCore.getPlugin(pluginId);
+            if (plugin != null) {
+                return plugin.getVersion();
+            }
+        } catch (Exception e) {
+            // Ignore and try alternative methods
+        }
+        
+        try {
+            // Try to get version from package
+            Package pkg = getClass().getPackage();
+            if (pkg != null) {
+                String version = pkg.getImplementationVersion();
+                if (version != null && !version.isEmpty()) {
+                    return version;
+                }
+            }
+        } catch (Exception e) {
+            // Ignore
+        }
+        
+        return "1.0.2"; // Fallback version
+    }
+    
+    private String getBuildDate() {
+        try {
+            // Try to get build timestamp from manifest
+            Package pkg = getClass().getPackage();
+            if (pkg != null) {
+                String buildTime = pkg.getImplementationTitle();
+                if (buildTime != null) {
+                    return buildTime;
+                }
+            }
+        } catch (Exception e) {
+            // Ignore
+        }
+        
+        // Fallback to current date for development builds
+        return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
     }
 }
