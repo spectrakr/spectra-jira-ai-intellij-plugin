@@ -100,26 +100,27 @@ jobs:
         
         # Create or update CHANGELOG.md
         if [ ! -f CHANGELOG.md ]; then
-          cat > CHANGELOG.md << EOF
-# Changelog
-
-All notable changes to the Spectra IntelliJ AI Plugin will be documented in this file.
-
-## [${NEW_VERSION}] - ${TODAY}
-
-### Added
-- Version ${NEW_VERSION} release
-
-EOF
+          echo "# Changelog" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "All notable changes to the Spectra IntelliJ AI Plugin will be documented in this file." >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "## [${NEW_VERSION}] - ${TODAY}" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          echo "### Added" >> CHANGELOG.md
+          echo "- Version ${NEW_VERSION} release" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
         else
           # Insert new version at the top of existing changelog
-          sed -i "/^## \\[Unreleased\\]/a\\
-\\
-## [${NEW_VERSION}] - ${TODAY}\\
-\\
-### Added\\
-- Version ${NEW_VERSION} release\\
-" CHANGELOG.md
+          temp_file=$(mktemp)
+          head -n 3 CHANGELOG.md > "$temp_file"
+          echo "" >> "$temp_file"
+          echo "## [${NEW_VERSION}] - ${TODAY}" >> "$temp_file"
+          echo "" >> "$temp_file"
+          echo "### Added" >> "$temp_file"
+          echo "- Version ${NEW_VERSION} release" >> "$temp_file"
+          echo "" >> "$temp_file"
+          tail -n +4 CHANGELOG.md >> "$temp_file"
+          mv "$temp_file" CHANGELOG.md
         fi
 
     - name: Commit version bump
