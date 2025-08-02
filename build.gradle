@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.spectra.intellij.ai'
-version = '1.0.3'
+version = '1.0.4'
 
 // Dynamic version from Git tag or environment variable
 def getVersionName() {
@@ -25,7 +25,7 @@ def getVersionName() {
     }
 }
 
-version = project.hasProperty('version') ? project.property('version') : getVersionName()
+version = '1.0.4'
 
 repositories {
     mavenCentral()
