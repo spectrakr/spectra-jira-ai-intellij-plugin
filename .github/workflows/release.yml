@@ -14,6 +14,10 @@ on:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
     
     steps:
     - name: Checkout code
@@ -92,14 +96,14 @@ jobs:
           ### Installation
           
           **Option 1: Direct Download**
-          1. Download the plugin JAR file from the assets below
+          1. Download the plugin ZIP file from the assets below
           2. Go to File → Settings → Plugins → Install Plugin from Disk
-          3. Select the downloaded JAR file
+          3. Select the downloaded ZIP file
           
           **Option 2: Custom Repository (Recommended for Auto-Updates)**
           1. Go to File → Settings → Plugins → Gear Icon → Manage Plugin Repositories
-          2. Add: `https://github.com/spectrakr/spectra-jira-ai-intellij-plugin/releases/latest/download/updatePlugins.xml`
-          3. Search for "Spectra IntelliJ AI" in the Marketplace tab
+          2. Add: `https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/updatePlugins.xml`
+          3. Search for "Spectra Jira AI" in the Marketplace tab
           
           ### Configuration
           After installation, configure the plugin in File → Settings → Tools → Spectra Jira Settings
@@ -107,7 +111,108 @@ jobs:
         prerelease: false
         files: |
           ./build/distributions/*.zip
-          ./updatePlugins.xml
+
+    - name: Prepare GitHub Pages
+      run: |
+        mkdir -p gh-pages
+        cp build/repository/updatePlugins.xml gh-pages/
+        
+        # Create index.html for repository info
+        cat > gh-pages/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Spectra Jira AI IntelliJ Plugin Repository</title>
+            <meta charset="utf-8">
+            <style>
+                body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+                .container { max-width: 800px; margin: 0 auto; }
+                code { background: #f4f4f4; padding: 2px 4px; border-radius: 3px; font-family: 'Monaco', 'Consolas', monospace; }
+                .url { background: #e8f4fd; padding: 15px; border-radius: 5px; font-family: monospace; margin: 10px 0; border-left: 4px solid #2196F3; }
+                .highlight { background: #fff3cd; padding: 10px; border-radius: 5px; border-left: 4px solid #ffc107; }
+                h1 { color: #2196F3; }
+                h2 { color: #333; border-bottom: 2px solid #eee; padding-bottom: 5px; }
+                .method { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>🚀 Spectra Jira AI IntelliJ Plugin Repository</h1>
+                
+                <div class="highlight">
+                    <strong>📌 Latest Version:</strong> ${{ steps.get_version.outputs.version }}
+                </div>
+                
+                <h2>🔧 Installation Methods</h2>
+                
+                <div class="method">
+                    <h3>Method 1: Custom Repository (Recommended for Auto-Updates)</h3>
+                    <ol>
+                        <li>Open IntelliJ IDEA</li>
+                        <li>Go to <code>File → Settings → Plugins</code></li>
+                        <li>Click the ⚙️ gear icon → <code>Manage Plugin Repositories</code></li>
+                        <li>Click <code>+</code> and add this URL:</li>
+                    </ol>
+                    
+                    <div class="url">
+                        https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/updatePlugins.xml
+                    </div>
+                    
+                    <ol start="5">
+                        <li>Click <code>OK</code></li>
+                        <li>Go to <code>Marketplace</code> tab and search for <strong>"Spectra Jira AI"</strong></li>
+                        <li>Click <code>Install</code></li>
+                    </ol>
+                </div>
+                
+                <div class="method">
+                    <h3>Method 2: Direct Download</h3>
+                    <ol>
+                        <li>Download the latest ZIP from <a href="https://github.com/${{ github.repository }}/releases/latest">GitHub Releases</a></li>
+                        <li>In IntelliJ: <code>File → Settings → Plugins → ⚙️ → Install Plugin from Disk</code></li>
+                        <li>Select the downloaded ZIP file</li>
+                        <li>Restart IntelliJ IDEA</li>
+                    </ol>
+                </div>
+                
+                <h2>🔄 Auto-Updates</h2>
+                <p>When using <strong>Method 1 (Custom Repository)</strong>, the plugin will automatically check for updates and notify you when new versions are available. You'll see update notifications in IntelliJ's plugin manager.</p>
+                
+                <h2>⚙️ Configuration</h2>
+                <p>After installation, configure the plugin:</p>
+                <ol>
+                    <li>Go to <code>File → Settings → Tools → Spectra Jira Settings</code></li>
+                    <li>Enter your Jira server URL, username, and API token</li>
+                    <li>Test the connection and save</li>
+                </ol>
+                
+                <h2>🔗 Links</h2>
+                <ul>
+                    <li><a href="https://github.com/${{ github.repository }}">📂 GitHub Repository</a></li>
+                    <li><a href="https://github.com/${{ github.repository }}/releases">📦 All Releases</a></li>
+                    <li><a href="https://github.com/${{ github.repository }}/issues">🐛 Report Issues</a></li>
+                    <li><a href="https://github.com/${{ github.repository }}/blob/main/README.md">📖 Documentation</a></li>
+                </ul>
+                
+                <footer style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #666; text-align: center;">
+                    <p>Built with ❤️ by Spectra Team | Last updated: ${{ steps.get_version.outputs.version }}</p>
+                </footer>
+            </div>
+        </body>
+        </html>
+        EOF
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v3
+
+    - name: Upload Pages artifact
+      uses: actions/upload-pages-artifact@v2
+      with:
+        path: gh-pages
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v2
 
 #    - name: Publish to JetBrains Marketplace
 #      if: ${{ secrets.PUBLISH_TOKEN }}

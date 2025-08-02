@@ -25,8 +25,7 @@ def getVersionName() {
     }
 }
 
-//version = getVersionName()
-version = "1.0.0"
+version = project.hasProperty('version') ? project.property('version') : getVersionName()
 
 repositories {
     mavenCentral()
@@ -96,13 +95,29 @@ task preparePluginRepository(type: Copy, dependsOn: buildPlugin) {
         
         // Create updatePlugins.xml
         updateXmlFile.parentFile.mkdirs()
+        
+        // Get GitHub repository info from git remote
+        def gitRemote = ""
+        try {
+            def remoteOutput = new ByteArrayOutputStream()
+            exec {
+                commandLine 'git', 'remote', 'get-url', 'origin'
+                standardOutput = remoteOutput
+            }
+            gitRemote = remoteOutput.toString().trim()
+                .replace("git@github.com:", "https://github.com/")
+                .replace(".git", "")
+        } catch (Exception e) {
+            gitRemote = "https://github.com/spectrakr/spectra-jira-ai-intellij-plugin"
+        }
+        
         updateXmlFile.text = """<?xml version="1.0" encoding="UTF-8"?>
 <plugins>
-    <plugin id="${project.group}" 
-            url="https://github.com/spectrakr/spectra-jira-ai-intellij-plugin/releases/latest/download/${pluginJar.name}" 
+    <plugin id="com.spectra.jira.ai" 
+            url="${gitRemote}/releases/latest/download/${pluginJar.name}" 
             version="${project.version}">
         <idea-version since-build="233" />
-        <name>Spectra IntelliJ AI</name>
+        <name>Spectra Jira AI</name>
         <description><![CDATA[
             IntelliJ IDEA plugin for Jira integration with AI capabilities.
             
