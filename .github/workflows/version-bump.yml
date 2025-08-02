@@ -31,7 +31,6 @@ jobs:
       with:
         fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
-        persist-credentials: true
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
@@ -124,15 +123,9 @@ jobs:
           mv "$temp_file" CHANGELOG.md
         fi
 
-    - name: Create version bump branch and PR
+    - name: Commit version bump
       run: |
         NEW_VERSION="${{ steps.new_version.outputs.version }}"
-        BRANCH_NAME="version-bump-${NEW_VERSION}"
-        
-        # Create and switch to new branch
-        git checkout -b "$BRANCH_NAME"
-        
-        # Commit changes
         git add build.gradle CHANGELOG.md
         git commit -m "🔖 Bump version to ${NEW_VERSION}
         
@@ -140,47 +133,13 @@ jobs:
         - Updated CHANGELOG.md
         - Automated version bump via GitHub Actions"
         
-        # Push branch
-        git push origin "$BRANCH_NAME"
-        
-        # Create and auto-merge PR
-        gh pr create \
-          --title "🔖 Bump version to ${NEW_VERSION}" \
-          --body "Automated version bump from ${CURRENT_VERSION} to ${NEW_VERSION}
-        
-        ### Changes
-        - Updated build.gradle version
-        - Updated CHANGELOG.md
-        
-        This PR will be automatically merged after creation." \
-          --base main \
-          --head "$BRANCH_NAME"
-        
-        # Auto-merge the PR
-        sleep 5
-        gh pr merge "$BRANCH_NAME" --auto --squash
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        CURRENT_VERSION: ${{ steps.current_version.outputs.current }}
+        git push origin main
 
-    - name: Wait for merge and create tag
+    - name: Create and push tag
       run: |
-        NEW_VERSION="${{ steps.new_version.outputs.version }}"
         TAG="${{ steps.new_version.outputs.tag }}"
-        
-        # Wait for PR to be merged
-        sleep 10
-        
-        # Fetch latest main
-        git fetch origin main
-        git checkout main
-        git pull origin main
-        
-        # Create and push tag
         git tag -a "$TAG" -m "Release $TAG"
         git push origin "$TAG"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Cache Gradle wrapper
       uses: actions/cache@v4
