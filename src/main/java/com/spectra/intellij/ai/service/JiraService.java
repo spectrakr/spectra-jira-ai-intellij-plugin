@@ -9,10 +9,7 @@ import okhttp3.*;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -968,13 +965,112 @@ public class JiraService {
     }
 
     public List<String> getProjectUsers(String projectKey) throws IOException {
+        // Try different approaches to get assignable users
+        List<String> users = new ArrayList<>();
+        
+        // First try: Use assignable search with project key
+        try {
+            users = tryGetAssignableUsers(projectKey);
+            if (!users.isEmpty()) {
+                return users;
+            }
+        } catch (IOException e) {
+            logRequest("WARN", "Assignable search failed: " + e.getMessage());
+        }
+        
+        // Second try: Use user search without project restriction
+        try {
+            users = tryGetAllUsers();
+            if (!users.isEmpty()) {
+                return users;
+            }
+        } catch (IOException e) {
+            logRequest("WARN", "User search failed: " + e.getMessage());
+        }
+        
+        // Third try: Use project role members
+        try {
+            users = tryGetProjectRoleMembers(projectKey);
+            if (!users.isEmpty()) {
+                return users;
+            }
+        } catch (IOException e) {
+            logRequest("WARN", "Project role members failed: " + e.getMessage());
+        }
+        
+        throw new IOException("All methods to fetch users failed. Check project key '" + projectKey + "' and permissions.");
+    }
+    
+    private List<String> tryGetAssignableUsers(String projectKey) throws IOException {
         String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/user/assignable/search?project=" + projectKey + "&maxResults=300";
+        return fetchUsersFromUrl(url, "assignable users");
+    }
+    
+    private List<String> tryGetAllUsers() throws IOException {
+        String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/user/search?maxResults=300";
+        return fetchUsersFromUrl(url, "all users");
+    }
+    
+    private List<String> tryGetProjectRoleMembers(String projectKey) throws IOException {
+        // Get project roles first
+        String rolesUrl = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/project/" + projectKey + "/role";
+        logRequest("GET", rolesUrl);
+        Request rolesRequest = buildRequest(rolesUrl);
+        
+        Set<String> allUsers = new HashSet<>();
+        
+        try (Response rolesResponse = client.newCall(rolesRequest).execute()) {
+            if (!rolesResponse.isSuccessful()) {
+                throw new IOException("Failed to get project roles: HTTP " + rolesResponse.code());
+            }
+            
+            String rolesBody = rolesResponse.body() != null ? rolesResponse.body().string() : "{}";
+            JsonObject rolesJson = gson.fromJson(rolesBody, JsonObject.class);
+            
+            // For each role, get its members
+            for (String roleName : rolesJson.keySet()) {
+                try {
+                    String roleUrl = rolesJson.get(roleName).getAsString();
+                    Request roleRequest = buildRequest(roleUrl);
+                    
+                    try (Response roleResponse = client.newCall(roleRequest).execute()) {
+                        if (roleResponse.isSuccessful()) {
+                            String roleBody = roleResponse.body() != null ? roleResponse.body().string() : "{}";
+                            JsonObject roleJson = gson.fromJson(roleBody, JsonObject.class);
+                            
+                            if (roleJson.has("actors")) {
+                                JsonArray actors = roleJson.getAsJsonArray("actors");
+                                for (int i = 0; i < actors.size(); i++) {
+                                    JsonObject actor = actors.get(i).getAsJsonObject();
+                                    if (actor.has("displayName")) {
+                                        allUsers.add(actor.get("displayName").getAsString());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    // Skip this role if it fails
+                    logRequest("WARN", "Failed to get role " + roleName + ": " + e.getMessage());
+                }
+            }
+        }
+        
+        return new ArrayList<>(allUsers);
+    }
+    
+    private List<String> fetchUsersFromUrl(String url, String source) throws IOException {
         logRequest("GET", url);
         Request request = buildRequest(url);
         
         try (Response response = client.newCall(request).execute()) {
             if (!response.isSuccessful()) {
-                throw new IOException("Failed to get project users: " + response.code());
+                String errorBody = response.body() != null ? response.body().string() : "";
+                String errorMessage = "Failed to get " + source + ": HTTP " + response.code() + " - " + response.message();
+                if (!errorBody.isEmpty()) {
+                    errorMessage += " - " + errorBody;
+                }
+                throw new IOException(errorMessage);
             }
             
             String responseBody = response.body() != null ? response.body().string() : "[]";

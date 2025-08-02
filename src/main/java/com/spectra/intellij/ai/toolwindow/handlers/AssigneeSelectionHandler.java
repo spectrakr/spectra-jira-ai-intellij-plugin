@@ -94,7 +94,12 @@ public class AssigneeSelectionHandler {
             }))
             .exceptionally(throwable -> {
                 SwingUtilities.invokeLater(() -> {
-                    updateStatus("Error loading users: " + throwable.getMessage());
+                    String errorMessage = throwable.getMessage();
+                    if (throwable.getCause() != null) {
+                        errorMessage = throwable.getCause().getMessage();
+                    }
+                    updateStatus("Error loading users: " + errorMessage);
+                    Messages.showErrorDialog(project, "Failed to fetch project users. " + errorMessage, "Fetch Users Error");
                 });
                 return null;
             });
