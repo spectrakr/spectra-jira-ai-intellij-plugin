@@ -133,9 +133,12 @@ public class JiraConfigurable implements Configurable {
             defaultProjectKeyField = new JTextField();
             panel.add(defaultProjectKeyField, gbc);
             
-            // Check Version Button
+            // Buttons Panel
             gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0; gbc.weighty = 0;
             gbc.anchor = GridBagConstraints.CENTER;
+            
+            JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
+            
             JButton checkVersionButton = new JButton("Check Version");
             checkVersionButton.addActionListener(new ActionListener() {
                 @Override
@@ -143,7 +146,18 @@ public class JiraConfigurable implements Configurable {
                     showVersionInfo();
                 }
             });
-            panel.add(checkVersionButton, gbc);
+            
+            JButton setupAutoUpdateButton = new JButton("자동 업데이트 설정");
+            setupAutoUpdateButton.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    showAutoUpdateGuide();
+                }
+            });
+            
+            buttonsPanel.add(checkVersionButton);
+            buttonsPanel.add(setupAutoUpdateButton);
+            panel.add(buttonsPanel, gbc);
             
             // Fill remaining space
             gbc.gridx = 0; gbc.gridy = 6; gbc.gridwidth = 2; gbc.weighty = 1.0;
@@ -253,6 +267,34 @@ public class JiraConfigurable implements Configurable {
             
             // Fallback to current date for development builds
             return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        }
+        
+        private void showAutoUpdateGuide() {
+            String repositoryUrl = "https://spectra-team.github.io/spectra-jira-ai-intellij-plugin/updatePlugins.xml";
+            
+            StringBuilder message = new StringBuilder();
+            message.append("자동 업데이트를 설정하려면 다음 단계를 따르세요:\n\n");
+            message.append("1. File → Settings → Plugins로 이동\n");
+            message.append("2. ⚙️ 톱니바퀴 아이콘 클릭 → 'Manage Plugin Repositories' 선택\n");
+            message.append("3. '+' 버튼을 클릭하고 다음 URL을 추가:\n\n");
+            message.append(repositoryUrl).append("\n\n");
+            message.append("4. 'OK' 버튼 클릭\n");
+            message.append("5. 이제 새 버전이 출시되면 자동으로 알림을 받게 됩니다!\n\n");
+            message.append("💡 URL이 클립보드에 복사되었습니다.");
+            
+            // Copy URL to clipboard
+            try {
+                java.awt.Toolkit.getDefaultToolkit()
+                    .getSystemClipboard()
+                    .setContents(new java.awt.datatransfer.StringSelection(repositoryUrl), null);
+            } catch (Exception e) {
+                // Ignore clipboard errors
+            }
+            
+            Messages.showInfoMessage(
+                message.toString(),
+                "자동 업데이트 설정 가이드"
+            );
         }
     }
 }

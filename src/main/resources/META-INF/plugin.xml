@@ -2,13 +2,19 @@
     <id>com.spectra.jira.ai</id>
     <name>Spectra Jira AI</name>
     <version>${project.version}</version>
-    <vendor>Spectra</vendor>
+    <vendor email="kmhan@spectra.co.kr" url="https://github.com/spectra-team/spectra-jira-ai-intellij-plugin">Spectra</vendor>
 
     <description><![CDATA[
       IntelliJ IDEA plugin for Jira integration with AI capabilities.
+      
       Features include:
       - Jira issue creation with sprint selection
       - Dynamic issue type selection
+      - Automatic configuration persistence
+      - Integration with Jira Cloud API v3
+      - Auto-update support via custom repository
+      
+      Configure your Jira connection in Settings > Tools > Spectra Jira Settings
     ]]></description>
 
     <change-notes><![CDATA[
