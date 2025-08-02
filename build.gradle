@@ -140,7 +140,7 @@ task preparePluginRepository(type: Copy, dependsOn: buildPlugin) {
             
             Configure your Jira connection in Settings > Tools > Spectra Jira Settings
         ]]></description>
-        <change-notes><![CDATA[${pluginConfiguration.changeNotes.get()}]]></change-notes>
+        <change-notes><![CDATA[Version ${project.version} release]]></change-notes>
         <vendor>Spectra</vendor>
         <depends>com.intellij.modules.platform</depends>
         <depends>com.intellij.modules.java</depends>
