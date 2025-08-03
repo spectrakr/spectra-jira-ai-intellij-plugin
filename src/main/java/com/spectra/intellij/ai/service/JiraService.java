@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonArray;
 import com.spectra.intellij.ai.model.JiraIssue;
 import com.spectra.intellij.ai.model.JiraSprint;
+import com.spectra.intellij.ai.model.JiraEpic;
 import okhttp3.*;
 import org.apache.commons.lang3.StringUtils;
 
@@ -77,6 +78,16 @@ public class JiraService {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 return getEpics(boardId);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to fetch epics", e);
+            }
+        });
+    }
+
+    public CompletableFuture<List<JiraEpic>> getEpicListAsync() {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return getEpicList();
             } catch (IOException e) {
                 throw new RuntimeException("Failed to fetch epics", e);
             }
@@ -168,6 +179,59 @@ public class JiraService {
         }
     }
 
+    public List<JiraEpic> getEpicList() throws IOException {
+        String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/search";
+        
+        // JQL to get Epics from project
+        String jql = "project = " + getProjectKey() + " AND issuetype = Epic ORDER BY updated DESC";
+        
+        JsonObject requestBody = new JsonObject();
+        requestBody.addProperty("jql", jql);
+        requestBody.addProperty("startAt", 0);
+        requestBody.addProperty("maxResults", 50);
+        
+        // Specify fields to retrieve
+        JsonArray fields = new JsonArray();
+        fields.add("summary");
+        requestBody.add("fields", fields);
+        
+        RequestBody body = RequestBody.create(
+            gson.toJson(requestBody),
+            MediaType.parse("application/json")
+        );
+        
+        logRequest("POST", url, gson.toJson(requestBody));
+        
+        Request request = buildRequest(url).newBuilder()
+            .post(body)
+            .build();
+        
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("Failed to get epics: " + response.code());
+            }
+            
+            String responseBody = response.body() != null ? response.body().string() : "{}";
+            JsonObject responseJson = gson.fromJson(responseBody, JsonObject.class);
+            JsonArray epicsArray = responseJson.getAsJsonArray("issues");
+            
+            List<JiraEpic> epics = new ArrayList<>();
+            for (int i = 0; i < epicsArray.size(); i++) {
+                JsonObject epicJson = epicsArray.get(i).getAsJsonObject();
+                JiraEpic epic = new JiraEpic();
+                epic.setKey(epicJson.get("key").getAsString());
+                
+                JsonObject fieldsObj = epicJson.getAsJsonObject("fields");
+                epic.setSummary(fieldsObj.get("summary").getAsString());
+                epic.setName(fieldsObj.get("summary").getAsString());
+                
+                epics.add(epic);
+            }
+            
+            return epics;
+        }
+    }
+
     public CompletableFuture<List<JiraIssue>> getSprintIssuesAsync(String sprintId) {
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -244,6 +308,26 @@ public class JiraService {
             JsonObject priority = new JsonObject();
             priority.addProperty("name", issue.getPriority());
             fields.add("priority", priority);
+        }
+
+        // Add assignee if specified
+        if (StringUtils.isNotBlank(issue.getAssignee())) {
+            try {
+                String accountId = findUserAccountIdByDisplayName(issue.getAssignee());
+                if (accountId != null) {
+                    JsonObject assignee = new JsonObject();
+                    assignee.addProperty("accountId", accountId);
+                    fields.add("assignee", assignee);
+                }
+            } catch (IOException e) {
+                System.err.println("Warning: Failed to find user account ID for assignee: " + issue.getAssignee());
+                // Don't fail the issue creation if assignee lookup fails
+            }
+        }
+
+        // Add epic link if specified
+        if (StringUtils.isNotBlank(issue.getEpicKey())) {
+            fields.addProperty("customfield_10014", issue.getEpicKey()); // Epic Link field
         }
         
         issuePayload.add("fields", fields);

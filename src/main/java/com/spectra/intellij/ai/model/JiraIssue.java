@@ -12,6 +12,8 @@ public class JiraIssue {
     private String issueTypeId;
     private String sprintId;
     private String sprintName;
+    private String epicKey;
+    private String epicName;
     private Double storyPoints;
     private String parentKey;
     private String parentSummary;
@@ -112,6 +114,22 @@ public class JiraIssue {
 
     public void setSprintName(String sprintName) {
         this.sprintName = sprintName;
+    }
+
+    public String getEpicKey() {
+        return epicKey;
+    }
+
+    public void setEpicKey(String epicKey) {
+        this.epicKey = epicKey;
+    }
+
+    public String getEpicName() {
+        return epicName;
+    }
+
+    public void setEpicName(String epicName) {
+        this.epicName = epicName;
     }
 
     public Double getStoryPoints() {
