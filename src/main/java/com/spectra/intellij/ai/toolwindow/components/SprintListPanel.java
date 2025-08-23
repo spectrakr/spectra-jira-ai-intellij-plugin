@@ -5,7 +5,10 @@ import com.intellij.ide.plugins.PluginManagerCore;
 import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.IconLoader;
 import com.intellij.ui.components.JBScrollPane;
+import com.intellij.util.ui.UIUtil;
+import com.intellij.ui.JBColor;
 import com.spectra.intellij.ai.model.JiraSprint;
 
 import javax.swing.*;
@@ -36,33 +39,47 @@ public class SprintListPanel extends JPanel {
         setPreferredSize(new Dimension(200, 0));
         setMinimumSize(new Dimension(180, 0));
         
-        // Top section with settings button and sprints label
+        // Top section with header layout
         JPanel topSection = new JPanel(new BorderLayout());
         
-        // Add buttons at the top
-        settingsButton = new JButton("Jira Setting");
-        settingsButton.setPreferredSize(new Dimension(80, 25));
+        // Header panel with sprint title and icon buttons
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(5, 8, 5, 8));
+        
+        // Sprint list title on the left
+        JLabel sprintsLabel = new JLabel("스프린트 목록");
+        sprintsLabel.setFont(sprintsLabel.getFont().deriveFont(Font.BOLD));
+        headerPanel.add(sprintsLabel, BorderLayout.WEST);
+        
+        // Icon buttons on the right
+        JPanel iconButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
+        
+        // Settings button with icon
+        settingsButton = new JButton();
+        // Use theme-aware icon loading
+        Color textColor = UIUtil.getLabelForeground();
+        boolean isDark = textColor.getRed() > 127; // Light text indicates dark theme
+        if (isDark) {
+            settingsButton.setIcon(IconLoader.getIcon("/icons/settings_dark.svg", getClass()));
+        } else {
+            settingsButton.setIcon(IconLoader.getIcon("/icons/settings.svg", getClass()));
+        }
+        settingsButton.setToolTipText("Jira Setting");
+        settingsButton.setPreferredSize(new Dimension(24, 24));
+        settingsButton.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+        settingsButton.setContentAreaFilled(false);
+        settingsButton.setFocusPainted(false);
         settingsButton.addActionListener(e -> {
             if (onSettingsClick != null) {
                 onSettingsClick.accept(null);
             }
         });
+
+
+        iconButtonPanel.add(settingsButton);
+        headerPanel.add(iconButtonPanel, BorderLayout.EAST);
         
-        checkVersionButton = new JButton("Version");
-        checkVersionButton.setPreferredSize(new Dimension(65, 25));
-        checkVersionButton.setToolTipText("Check Plugin Version");
-        checkVersionButton.addActionListener(e -> showVersionInfo());
-        
-        JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 3, 3));
-        buttonsPanel.add(settingsButton);
-        buttonsPanel.add(checkVersionButton);
-        topSection.add(buttonsPanel, BorderLayout.NORTH);
-        
-        // Add Sprints label below settings button
-        JPanel sprintsLabelPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 5));
-        sprintsLabelPanel.setBorder(BorderFactory.createTitledBorder("Sprints"));
-        topSection.add(sprintsLabelPanel, BorderLayout.CENTER);
-        
+        topSection.add(headerPanel, BorderLayout.NORTH);
         add(topSection, BorderLayout.NORTH);
         
         sprintListModel = new DefaultListModel<>();

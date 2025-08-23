@@ -76,8 +76,12 @@ public class CreateIssueDialog extends DialogWrapper {
         descriptionArea = new JTextArea(12, 45);
         descriptionArea.setLineWrap(true);
         descriptionArea.setWrapStyleWord(true);
+        descriptionArea.setBorder(BorderFactory.createLineBorder(new Color(150, 150, 150), 1)); // Add padding inside
         JScrollPane descriptionScrollPane = new JScrollPane(descriptionArea);
+        // Ensure the scroll pane has the same border style as other input fields
         descriptionScrollPane.setBorder(summaryField.getBorder());
+        descriptionScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        descriptionScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         panel.add(descriptionScrollPane, gbc);
         
         // Priority
@@ -257,9 +261,7 @@ public class CreateIssueDialog extends DialogWrapper {
         String currentIssueType = (String) issueTypeComboBox.getSelectedItem();
         
         // Load sprints
-        JiraSettings settings = JiraSettings.getInstance();
-        if (settings.getDefaultBoardId() != null && !settings.getDefaultBoardId().trim().isEmpty()) {
-            jiraService.getSprintsAsync(settings.getDefaultBoardId())
+        jiraService.getSprintsAsync()
                 .thenAccept(sprints -> {
                     SwingUtilities.invokeLater(() -> {
                         sprintComboBox.removeAllItems();
@@ -312,7 +314,6 @@ public class CreateIssueDialog extends DialogWrapper {
                     });
                     return null;
                 });
-        }
         
         // Epic and Assignee will be loaded when user clicks on them (on-demand loading)
 

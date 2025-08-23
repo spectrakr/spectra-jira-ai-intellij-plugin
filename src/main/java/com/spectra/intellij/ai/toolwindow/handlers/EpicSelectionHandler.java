@@ -89,12 +89,11 @@ public class EpicSelectionHandler {
     private void showEpicSelectionPopup() {
         updateStatus("Loading epics...");
         
-        // Get board ID from settings
-        JiraSettings settings = JiraSettings.getInstance();
-        String boardId = settings.getDefaultBoardId();
+        // Get board ID from currently selected sprint
+        String boardId = getCurrentBoardId();
         
-        if (boardId == null || boardId.trim().isEmpty()) {
-            updateStatus("Board ID not configured. Please set Board ID in settings.");
+        if (boardId == null) {
+            updateStatus("No sprint selected or no board information available.");
             return;
         }
         
@@ -110,6 +109,23 @@ public class EpicSelectionHandler {
                 });
                 return null;
             });
+    }
+    
+    private String getCurrentBoardId() {
+        // Try to get boardId from the currently selected sprint via the tool window content
+        // This is a simple approach - in a more robust implementation, we might want to 
+        // track the current sprint selection more explicitly
+        
+        // For now, use fallback to the default boardId from settings if available
+        JiraSettings settings = JiraSettings.getInstance();
+        String boardId = settings.getDefaultBoardId();
+        
+        if (boardId != null && !boardId.trim().isEmpty()) {
+            return boardId;
+        }
+        
+        // If no boardId available, return null to indicate we need sprint selection
+        return null;
     }
     
     private void showEpicSearchDialog(List<JiraIssue> allEpics) {

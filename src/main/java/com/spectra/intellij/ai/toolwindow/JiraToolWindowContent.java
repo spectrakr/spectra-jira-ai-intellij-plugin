@@ -14,7 +14,10 @@ import com.spectra.intellij.ai.toolwindow.handlers.*;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.Desktop;
+import java.net.URI;
 import java.util.function.Consumer;
+import com.spectra.intellij.ai.service.JiraService;
 
 public class JiraToolWindowContent {
     
@@ -26,6 +29,7 @@ public class JiraToolWindowContent {
     private SprintListPanel sprintListPanel;
     private FilterPanel filterPanel;
     private IssueTableManager issueTableManager;
+    private IssueStatisticsPanel issueStatisticsPanel;
     private IssueDetailPanel issueDetailPanel;
     
     // Inline edit handlers
@@ -58,6 +62,7 @@ public class JiraToolWindowContent {
         sprintListPanel = new SprintListPanel(project);
         filterPanel = new FilterPanel(project);
         issueTableManager = new IssueTableManager();
+        issueStatisticsPanel = new IssueStatisticsPanel();
         issueDetailPanel = new IssueDetailPanel(project);
         
         // Setup main layout
@@ -74,11 +79,22 @@ public class JiraToolWindowContent {
     }
     
     private void setupMainLayout() {
-        // Center panel - Issue table with filter panel above
+        // Create tabbed pane for Issues
+        JTabbedPane tabbedPane = new JTabbedPane();
+        
+        // Issue List Tab
+        JPanel issueListPanel = new JPanel(new BorderLayout());
+        issueListPanel.add(filterPanel, BorderLayout.NORTH);
+        issueListPanel.add(new JScrollPane(issueTableManager.getTable()), BorderLayout.CENTER);
+        tabbedPane.addTab("이슈 목록", issueListPanel);
+        
+        // Issue Statistics Tab
+        tabbedPane.addTab("이슈 통계", issueStatisticsPanel);
+        
+        // Center panel with tabs
         JPanel issuePanel = new JPanel(new BorderLayout());
-        issuePanel.setBorder(BorderFactory.createTitledBorder("Issues"));
-        issuePanel.add(filterPanel, BorderLayout.NORTH);
-        issuePanel.add(new JScrollPane(issueTableManager.getTable()), BorderLayout.CENTER);
+        issuePanel.setBorder(BorderFactory.createEmptyBorder());
+        issuePanel.add(tabbedPane, BorderLayout.CENTER);
         
         // Right panel - Issue detail form with scroll
         JScrollPane detailScrollPane = new JScrollPane(issueDetailPanel);
@@ -371,18 +387,10 @@ public class JiraToolWindowContent {
             return;
         }
         
-        JiraSettings settings = JiraSettings.getInstance();
-        String boardId = settings.getDefaultBoardId();
-        
-        if (boardId == null || boardId.trim().isEmpty()) {
-            updateStatus("Board ID not configured. Please set Board ID in settings.");
-            return;
-        }
-        
-        updateStatus("Loading sprints from board: " + boardId + "...");
+        updateStatus("Loading sprints from project boards...");
         
         JiraService jiraService = getConfiguredJiraService();
-        jiraService.getSprintsAsync(boardId)
+        jiraService.getSprintsAsync()
             .thenAccept(sprints -> {
                 SwingUtilities.invokeLater(() -> {
                     sprintListPanel.updateSprints(sprints);
@@ -411,6 +419,7 @@ public class JiraToolWindowContent {
             .thenAccept(issues -> {
                 SwingUtilities.invokeLater(() -> {
                     issueTableManager.updateIssues(issues);
+                    issueStatisticsPanel.updateStatistics(issues);
                     
                     // Only clear issue detail if we're not preserving selection
                     if (preserveSelectedIssueKey == null) {
@@ -437,6 +446,7 @@ public class JiraToolWindowContent {
             .exceptionally(throwable -> {
                 SwingUtilities.invokeLater(() -> {
                     issueTableManager.clearIssues();
+                    issueStatisticsPanel.clearStatistics();
                     if (preserveSelectedIssueKey == null) {
                         clearIssueDetail();
                     }
@@ -536,6 +546,81 @@ public class JiraToolWindowContent {
         issueDetailPanel.clearIssueDetail();
     }
     
+    private void openTokenUrl() {
+        try {
+            Desktop desktop = Desktop.getDesktop();
+            if (desktop.isSupported(Desktop.Action.BROWSE)) {
+                desktop.browse(new URI("https://id.atlassian.com/manage-profile/security/api-tokens"));
+            } else {
+                Messages.showInfoMessage(
+                    project,
+                    "브라우저를 자동으로 열 수 없습니다.\n\n다음 URL을 수동으로 방문하세요:\nhttps://id.atlassian.com/manage-profile/security/api-tokens",
+                    "API 토큰 생성"
+                );
+            }
+        } catch (Exception e) {
+            Messages.showErrorDialog(
+                project,
+                "브라우저를 열 수 없습니다.\n\n다음 URL을 수동으로 방문하세요:\nhttps://id.atlassian.com/manage-profile/security/api-tokens",
+                "오류"
+            );
+        }
+    }
+
+    private void validateToken(JTextField urlField, JTextField userField, JPasswordField tokenField) {
+        String jiraUrl = urlField.getText().trim();
+        String username = userField.getText().trim();
+        String apiToken = new String(tokenField.getPassword()).trim();
+
+        if (jiraUrl.isEmpty() || username.isEmpty() || apiToken.isEmpty()) {
+            Messages.showWarningDialog(
+                project,
+                "Jira URL, Email, API Token을 모두 입력해주세요.",
+                "입력 확인"
+            );
+            return;
+        }
+
+        // Show progress and validate token in background thread
+        JiraService jiraService = new JiraService();
+        jiraService.configure(jiraUrl, username, apiToken);
+
+        jiraService.getCurrentUserAsync()
+            .thenAccept(userJson -> {
+                SwingUtilities.invokeLater(() -> {
+                    String displayName = userJson.has("displayName") ? 
+                        userJson.get("displayName").getAsString() : "Unknown";
+                    String emailAddress = userJson.has("emailAddress") ? 
+                        userJson.get("emailAddress").getAsString() : "Unknown";
+                    
+                    Messages.showInfoMessage(
+                        project,
+                        "토큰이 유효합니다!\n\n" +
+                        "사용자: " + displayName + "\n" +
+                        "이메일: " + emailAddress,
+                        "토큰 확인 성공"
+                    );
+                });
+            })
+            .exceptionally(throwable -> {
+                SwingUtilities.invokeLater(() -> {
+                    String errorMessage = "토큰이 유효하지 않습니다.\n\n";
+                    if (throwable.getCause() != null) {
+                        errorMessage += "오류: " + throwable.getCause().getMessage();
+                    } else {
+                        errorMessage += "Jira URL, Email, API Token을 확인해주세요.";
+                    }
+                    
+                    Messages.showErrorDialog(
+                        project,
+                        errorMessage, 
+                        "토큰 확인 실패"
+                    );
+                });
+                return null;
+            });
+    }
+
     private void showSettingsDialog() {
         JiraSettings settings = JiraSettings.getInstance();
         
@@ -553,10 +638,10 @@ public class JiraToolWindowContent {
         gbc.fill = GridBagConstraints.HORIZONTAL;
         panel.add(urlField, gbc);
         
-        // Username
+        // Email
         gbc.gridx = 0; gbc.gridy = 1;
         gbc.fill = GridBagConstraints.NONE;
-        panel.add(new JLabel("Username:"), gbc);
+        panel.add(new JLabel("Email:"), gbc);
         
         JTextField userField = new JTextField(settings.getUsername() != null ? settings.getUsername() : "", 30);
         gbc.gridx = 1; gbc.gridy = 1;
@@ -568,30 +653,43 @@ public class JiraToolWindowContent {
         gbc.fill = GridBagConstraints.NONE;
         panel.add(new JLabel("API Token:"), gbc);
         
+        // API Token field and button panel
+        JPanel apiTokenPanel = new JPanel(new BorderLayout(5, 0));
         JPasswordField tokenField = new JPasswordField(settings.getApiToken() != null ? settings.getApiToken() : "", 30);
+        
+        // Button panel for token actions
+        JButton tokenLookupButton = new JButton("토큰 생성");
+        tokenLookupButton.addActionListener(e -> openTokenUrl());
+        JPanel tokenButtonsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
+        JButton tokenValidateButton = new JButton("토큰 확인");
+        tokenValidateButton.addActionListener(e -> validateToken(urlField, userField, tokenField));
+
+        tokenButtonsPanel.add(tokenLookupButton);
+        tokenButtonsPanel.add(tokenValidateButton);
+
+        apiTokenPanel.add(tokenField, BorderLayout.CENTER);
+        apiTokenPanel.add(tokenButtonsPanel, BorderLayout.EAST);
+        
         gbc.gridx = 1; gbc.gridy = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
-        panel.add(tokenField, gbc);
+        panel.add(apiTokenPanel, gbc);
         
         // Project ID
         gbc.gridx = 0; gbc.gridy = 3;
         gbc.fill = GridBagConstraints.NONE;
         panel.add(new JLabel("Project ID:"), gbc);
         
-        JTextField projectIdField = new JTextField(settings.getDefaultProjectKey() != null ? settings.getDefaultProjectKey() : "", 30);
+        // Project ID field and example panel
+        JPanel projectPanel = new JPanel(new BorderLayout(5, 0));
+        JTextField projectIdField = new JTextField(settings.getDefaultProjectKey() != null ? settings.getDefaultProjectKey() : "", 10);
+        JLabel exampleLabel = new JLabel("예) AVGRS");
+        exampleLabel.setForeground(Color.GRAY);
+        projectPanel.add(projectIdField, BorderLayout.WEST);
+        projectPanel.add(exampleLabel, BorderLayout.CENTER);
+        
         gbc.gridx = 1; gbc.gridy = 3;
         gbc.fill = GridBagConstraints.HORIZONTAL;
-        panel.add(projectIdField, gbc);
-        
-        // Board ID
-        gbc.gridx = 0; gbc.gridy = 4;
-        gbc.fill = GridBagConstraints.NONE;
-        panel.add(new JLabel("Board ID:"), gbc);
-        
-        JTextField boardIdField = new JTextField(settings.getDefaultBoardId() != null ? settings.getDefaultBoardId() : "", 30);
-        gbc.gridx = 1; gbc.gridy = 4;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        panel.add(boardIdField, gbc);
+        panel.add(projectPanel, gbc);
         
         // Show dialog
         int result = JOptionPane.showConfirmDialog(
@@ -608,7 +706,6 @@ public class JiraToolWindowContent {
             settings.setUsername(userField.getText().trim());
             settings.setApiToken(new String(tokenField.getPassword()).trim());
             settings.setDefaultProjectKey(projectIdField.getText().trim());
-            settings.setDefaultBoardId(boardIdField.getText().trim());
             
             // Refresh status after saving
             refreshStatus();

@@ -7,6 +7,7 @@ import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.NlsContexts;
+import com.spectra.intellij.ai.service.JiraService;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.Nullable;
 
@@ -16,6 +17,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.IOException;
 import java.io.InputStream;
+import java.awt.Desktop;
+import java.net.URI;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Properties;
@@ -46,7 +49,6 @@ public class JiraConfigurable implements Configurable {
         return !settingsPanel.getJiraUrl().equals(settings.getJiraUrl()) ||
                !settingsPanel.getUsername().equals(settings.getUsername()) ||
                !settingsPanel.getApiToken().equals(settings.getApiToken()) ||
-               !settingsPanel.getDefaultBoardId().equals(settings.getDefaultBoardId()) ||
                !settingsPanel.getDefaultProjectKey().equals(settings.getDefaultProjectKey());
     }
     
@@ -57,7 +59,6 @@ public class JiraConfigurable implements Configurable {
             settings.setJiraUrl(settingsPanel.getJiraUrl());
             settings.setUsername(settingsPanel.getUsername());
             settings.setApiToken(settingsPanel.getApiToken());
-            settings.setDefaultBoardId(settingsPanel.getDefaultBoardId());
             settings.setDefaultProjectKey(settingsPanel.getDefaultProjectKey());
         }
     }
@@ -69,7 +70,6 @@ public class JiraConfigurable implements Configurable {
             settingsPanel.setJiraUrl(settings.getJiraUrl());
             settingsPanel.setUsername(settings.getUsername());
             settingsPanel.setApiToken(settings.getApiToken());
-            settingsPanel.setDefaultBoardId(settings.getDefaultBoardId());
             settingsPanel.setDefaultProjectKey(settings.getDefaultProjectKey());
         }
     }
@@ -84,7 +84,6 @@ public class JiraConfigurable implements Configurable {
         private JTextField jiraUrlField;
         private JTextField usernameField;
         private JPasswordField apiTokenField;
-        private JTextField defaultBoardIdField;
         private JTextField defaultProjectKeyField;
         
         public JiraSettingsPanel() {
@@ -99,42 +98,58 @@ public class JiraConfigurable implements Configurable {
             gbc.anchor = GridBagConstraints.WEST;
             
             // Jira URL
-            gbc.gridx = 0; gbc.gridy = 0;
+            gbc.gridx = 0; gbc.gridy = 0; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
             panel.add(new JLabel("Jira URL:"), gbc);
             gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
-            jiraUrlField = new JTextField();
+            jiraUrlField = new JTextField(30); // Set preferred width
             panel.add(jiraUrlField, gbc);
             
-            // Username
+            // Email
             gbc.gridx = 0; gbc.gridy = 1; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
-            panel.add(new JLabel("Username:"), gbc);
+            panel.add(new JLabel("Email:"), gbc);
             gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
-            usernameField = new JTextField();
+            usernameField = new JTextField(30); // Set preferred width
             panel.add(usernameField, gbc);
             
             // API Token
             gbc.gridx = 0; gbc.gridy = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
             panel.add(new JLabel("API Token:"), gbc);
-            gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
-            apiTokenField = new JPasswordField();
-            panel.add(apiTokenField, gbc);
             
-            // Default Board ID
-            gbc.gridx = 0; gbc.gridy = 3; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
-            panel.add(new JLabel("Default Board ID:"), gbc);
+            // API Token field and button panel
             gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
-            defaultBoardIdField = new JTextField();
-            panel.add(defaultBoardIdField, gbc);
+            JPanel apiTokenPanel = new JPanel(new BorderLayout(5, 0));
+            apiTokenField = new JPasswordField(30); // Set preferred width
+            
+            // Button panel for token actions
+            JPanel tokenButtonsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
+            JButton tokenLookupButton = new JButton("토큰 조회");
+            tokenLookupButton.addActionListener(e -> openTokenUrl());
+            JButton tokenValidateButton = new JButton("토큰 확인");
+            tokenValidateButton.addActionListener(e -> validateToken());
+            tokenButtonsPanel.add(tokenValidateButton);
+            tokenButtonsPanel.add(tokenLookupButton);
+            
+            apiTokenPanel.add(apiTokenField, BorderLayout.CENTER);
+            apiTokenPanel.add(tokenButtonsPanel, BorderLayout.EAST);
+            panel.add(apiTokenPanel, gbc);
             
             // Default Project Key
-            gbc.gridx = 0; gbc.gridy = 4; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
-            panel.add(new JLabel("Default Project Key:"), gbc);
-            gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
+            gbc.gridx = 0; gbc.gridy = 3; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
+            panel.add(new JLabel("Project ID:"), gbc);
+            
+            // Project ID field and example panel
+            gbc.gridx = 1; gbc.gridy = 3; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
+            JPanel projectPanel = new JPanel(new BorderLayout(5, 0));
             defaultProjectKeyField = new JTextField();
-            panel.add(defaultProjectKeyField, gbc);
+            defaultProjectKeyField.setColumns(10); // Reduce text field length
+            JLabel exampleLabel = new JLabel("예) AVGRS");
+            exampleLabel.setForeground(Color.GRAY);
+            projectPanel.add(defaultProjectKeyField, BorderLayout.WEST);
+            projectPanel.add(exampleLabel, BorderLayout.CENTER);
+            panel.add(projectPanel, gbc);
             
             // Buttons Panel
-            gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0; gbc.weighty = 0;
+            gbc.gridx = 0; gbc.gridy = 4; gbc.gridwidth = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0; gbc.weighty = 0;
             gbc.anchor = GridBagConstraints.CENTER;
             
             JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
@@ -192,13 +207,6 @@ public class JiraConfigurable implements Configurable {
             apiTokenField.setText(apiToken);
         }
         
-        public String getDefaultBoardId() {
-            return defaultBoardIdField.getText().trim();
-        }
-        
-        public void setDefaultBoardId(String defaultBoardId) {
-            defaultBoardIdField.setText(defaultBoardId);
-        }
         
         public String getDefaultProjectKey() {
             return defaultProjectKeyField.getText().trim();
@@ -269,6 +277,73 @@ public class JiraConfigurable implements Configurable {
             return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
         }
         
+        private void openTokenUrl() {
+            try {
+                Desktop desktop = Desktop.getDesktop();
+                if (desktop.isSupported(Desktop.Action.BROWSE)) {
+                    desktop.browse(new URI("https://id.atlassian.com/manage-profile/security/api-tokens"));
+                } else {
+                    Messages.showInfoMessage(
+                        "브라우저를 자동으로 열 수 없습니다.\n\n다음 URL을 수동으로 방문하세요:\nhttps://id.atlassian.com/manage-profile/security/api-tokens",
+                        "API 토큰 생성"
+                    );
+                }
+            } catch (Exception e) {
+                Messages.showErrorDialog(
+                    "브라우저를 열 수 없습니다.\n\n다음 URL을 수동으로 방문하세요:\nhttps://id.atlassian.com/manage-profile/security/api-tokens",
+                    "오류"
+                );
+            }
+        }
+
+        private void validateToken() {
+            String jiraUrl = jiraUrlField.getText().trim();
+            String username = usernameField.getText().trim();
+            String apiToken = new String(apiTokenField.getPassword()).trim();
+
+            if (jiraUrl.isEmpty() || username.isEmpty() || apiToken.isEmpty()) {
+                Messages.showWarningDialog(
+                    "Jira URL, Email, API Token을 모두 입력해주세요.",
+                    "입력 확인"
+                );
+                return;
+            }
+
+            // Show progress and validate token in background thread
+            JiraService jiraService = new JiraService();
+            jiraService.configure(jiraUrl, username, apiToken);
+
+            jiraService.getCurrentUserAsync()
+                .thenAccept(userJson -> {
+                    SwingUtilities.invokeLater(() -> {
+                        String displayName = userJson.has("displayName") ? 
+                            userJson.get("displayName").getAsString() : "Unknown";
+                        String emailAddress = userJson.has("emailAddress") ? 
+                            userJson.get("emailAddress").getAsString() : "Unknown";
+                        
+                        Messages.showInfoMessage(
+                            "토큰이 유효합니다!\n\n" +
+                            "사용자: " + displayName + "\n" +
+                            "이메일: " + emailAddress,
+                            "토큰 확인 성공"
+                        );
+                    });
+                })
+                .exceptionally(throwable -> {
+                    SwingUtilities.invokeLater(() -> {
+                        String errorMessage = "토큰이 유효하지 않습니다.\n\n";
+                        if (throwable.getCause() != null) {
+                            errorMessage += "오류: " + throwable.getCause().getMessage();
+                        } else {
+                            errorMessage += "Jira URL, Email, API Token을 확인해주세요.";
+                        }
+                        
+                        Messages.showErrorDialog(errorMessage, "토큰 확인 실패");
+                    });
+                    return null;
+                });
+        }
+
         private void showAutoUpdateGuide() {
             String repositoryUrl = "https://spectra-team.github.io/spectra-jira-ai-intellij-plugin/updatePlugins.xml";
             

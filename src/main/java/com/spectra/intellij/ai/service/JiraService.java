@@ -73,6 +73,16 @@ public class JiraService {
             }
         });
     }
+    
+    public CompletableFuture<List<JiraSprint>> getSprintsAsync() {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return getSprintsFromProjectBoards();
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to fetch sprints from project boards", e);
+            }
+        });
+    }
 
     public CompletableFuture<List<JiraIssue>> getEpicsAsync(String boardId) {
         return CompletableFuture.supplyAsync(() -> {
@@ -123,6 +133,51 @@ public class JiraService {
             }
             
             return sprints;
+        }
+    }
+    
+    public List<JiraSprint> getSprintsFromProjectBoards() throws IOException {
+        // First get all boards for the project
+        List<String> boardIds = getProjectBoardIds();
+        
+        List<JiraSprint> allSprints = new ArrayList<>();
+        for (String boardId : boardIds) {
+            try {
+                List<JiraSprint> boardSprints = getSprints(boardId);
+                allSprints.addAll(boardSprints);
+            } catch (IOException e) {
+                // Log and continue with other boards
+                System.err.println("Failed to get sprints for board " + boardId + ": " + e.getMessage());
+            }
+        }
+        
+        return allSprints;
+    }
+    
+    public List<String> getProjectBoardIds() throws IOException {
+        String url = baseUrl + "rest/agile/" + AGILE_API_VERSION + "/board?projectKeyOrId=" + getProjectKey();
+        logRequest("GET", url);
+        Request request = buildRequest(url);
+        
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("Failed to get project boards: " + response.code());
+            }
+            
+            String responseBody = response.body() != null ? response.body().string() : "{}";
+            JsonObject responseJson = gson.fromJson(responseBody, JsonObject.class);
+            JsonArray boardsArray = responseJson.getAsJsonArray("values");
+            
+            List<String> boardIds = new ArrayList<>();
+            if (boardsArray != null) {
+                for (int i = 0; i < boardsArray.size(); i++) {
+                    JsonObject boardJson = boardsArray.get(i).getAsJsonObject();
+                    String boardId = boardJson.get("id").getAsString();
+                    boardIds.add(boardId);
+                }
+            }
+            
+            return boardIds;
         }
     }
 

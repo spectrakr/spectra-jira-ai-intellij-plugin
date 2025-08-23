@@ -10,6 +10,11 @@ import java.util.function.Consumer;
 
 public class FilterPanel extends JPanel {
     
+    // Constants for filter labels
+    private static final String ISSUE_TYPE_ALL_LABEL = "이슈 유형";
+    private static final String ASSIGNEE_ALL_LABEL = "담당자";
+    private static final String STATUS_ALL_LABEL = "이슈 상태";
+    
     private final Project project;
     private JComboBox<String> issueTypeFilter;
     private JComboBox<String> assigneeFilter;
@@ -34,7 +39,7 @@ public class FilterPanel extends JPanel {
         
         // Issue Type filter (no label)
         issueTypeFilter = new JComboBox<>();
-        issueTypeFilter.addItem("All");
+        issueTypeFilter.addItem(ISSUE_TYPE_ALL_LABEL);
         issueTypeFilter.addActionListener(e -> {
             if (onFilterChanged != null) {
                 onFilterChanged.accept(null);
@@ -44,7 +49,7 @@ public class FilterPanel extends JPanel {
         
         // Assignee filter (no label)
         assigneeFilter = new JComboBox<>();
-        assigneeFilter.addItem("All");
+        assigneeFilter.addItem(ASSIGNEE_ALL_LABEL);
         assigneeFilter.addActionListener(e -> {
             if (onFilterChanged != null) {
                 onFilterChanged.accept(null);
@@ -54,7 +59,7 @@ public class FilterPanel extends JPanel {
         
         // Status filter (no label)
         statusFilter = new JComboBox<>();
-        statusFilter.addItem("All");
+        statusFilter.addItem(STATUS_ALL_LABEL);
         statusFilter.addActionListener(e -> {
             if (onFilterChanged != null) {
                 onFilterChanged.accept(null);
@@ -94,9 +99,9 @@ public class FilterPanel extends JPanel {
     }
     
     public void clearFilters() {
-        issueTypeFilter.setSelectedItem("All");
-        assigneeFilter.setSelectedItem("All");
-        statusFilter.setSelectedItem("All");
+        issueTypeFilter.setSelectedItem(ISSUE_TYPE_ALL_LABEL);
+        assigneeFilter.setSelectedItem(ASSIGNEE_ALL_LABEL);
+        statusFilter.setSelectedItem(STATUS_ALL_LABEL);
         if (onFilterChanged != null) {
             onFilterChanged.accept(null);
         }
@@ -121,13 +126,13 @@ public class FilterPanel extends JPanel {
         
         // Clear and reset items
         issueTypeFilter.removeAllItems();
-        issueTypeFilter.addItem("All");
+        issueTypeFilter.addItem(ISSUE_TYPE_ALL_LABEL);
         
         assigneeFilter.removeAllItems();
-        assigneeFilter.addItem("All");
+        assigneeFilter.addItem(ASSIGNEE_ALL_LABEL);
         
         statusFilter.removeAllItems();
-        statusFilter.addItem("All");
+        statusFilter.addItem(STATUS_ALL_LABEL);
         
         // Re-add listeners
         for (ActionListener listener : issueTypeListeners) {
@@ -188,17 +193,26 @@ public class FilterPanel extends JPanel {
     // Getters for filter values
     public String getSelectedIssueType() {
         Object selected = issueTypeFilter.getSelectedItem();
-        return selected != null ? (String) selected : "All";
+        if (selected == null || ISSUE_TYPE_ALL_LABEL.equals(selected)) {
+            return "All";
+        }
+        return (String) selected;
     }
     
     public String getSelectedAssignee() {
         Object selected = assigneeFilter.getSelectedItem();
-        return selected != null ? (String) selected : "All";
+        if (selected == null || ASSIGNEE_ALL_LABEL.equals(selected)) {
+            return "All";
+        }
+        return (String) selected;
     }
     
     public String getSelectedStatus() {
         Object selected = statusFilter.getSelectedItem();
-        return selected != null ? (String) selected : "All";
+        if (selected == null || STATUS_ALL_LABEL.equals(selected)) {
+            return "All";
+        }
+        return (String) selected;
     }
     
     // Event handlers setters
