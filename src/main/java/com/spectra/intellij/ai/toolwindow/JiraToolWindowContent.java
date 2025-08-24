@@ -18,6 +18,7 @@ import java.awt.Desktop;
 import java.net.URI;
 import java.util.function.Consumer;
 import com.spectra.intellij.ai.service.JiraService;
+import com.intellij.util.ui.JBUI;
 
 public class JiraToolWindowContent {
     
@@ -85,7 +86,11 @@ public class JiraToolWindowContent {
         // Issue List Tab
         JPanel issueListPanel = new JPanel(new BorderLayout());
         issueListPanel.add(filterPanel, BorderLayout.NORTH);
-        issueListPanel.add(new JScrollPane(issueTableManager.getTable()), BorderLayout.CENTER);
+        
+        // Create scroll pane with custom border
+        JScrollPane tableScrollPane = new JScrollPane(issueTableManager.getTable());
+        tableScrollPane.setBorder(JBUI.Borders.customLine(JBUI.CurrentTheme.CustomFrameDecorations.separatorForeground(), 1));
+        issueListPanel.add(tableScrollPane, BorderLayout.CENTER);
         tabbedPane.addTab("이슈 목록", issueListPanel);
         
         // Issue Statistics Tab
@@ -101,6 +106,7 @@ public class JiraToolWindowContent {
         detailScrollPane.setPreferredSize(new Dimension(400, 0));
         detailScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         detailScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        detailScrollPane.setBorder(JBUI.Borders.customLine(JBUI.CurrentTheme.CustomFrameDecorations.separatorForeground(), 1));
         
         // Create resizable split pane for issue list and detail
         JSplitPane issueDetailSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, issuePanel, detailScrollPane);
@@ -283,7 +289,7 @@ public class JiraToolWindowContent {
         popupMenu.add(deleteItem);
         
         // Show popup menu below the hamburger button
-        Component hamburgerButton = issueDetailPanel.getComponents()[0]; // First component should be the hamburger menu panel
+        JButton hamburgerButton = issueDetailPanel.getHamburgerMenuButton();
         popupMenu.show(hamburgerButton, 0, hamburgerButton.getHeight());
     }
     

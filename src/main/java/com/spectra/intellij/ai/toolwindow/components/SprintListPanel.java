@@ -9,6 +9,7 @@ import com.intellij.openapi.util.IconLoader;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.util.ui.UIUtil;
 import com.intellij.ui.JBColor;
+import com.intellij.util.ui.JBUI;
 import com.spectra.intellij.ai.model.JiraSprint;
 
 import javax.swing.*;
@@ -109,6 +110,7 @@ public class SprintListPanel extends JPanel {
         });
         
         JBScrollPane sprintScrollPane = new JBScrollPane(sprintList);
+        sprintScrollPane.setBorder(JBUI.Borders.customLine(JBUI.CurrentTheme.CustomFrameDecorations.separatorForeground(), 1));
         add(sprintScrollPane, BorderLayout.CENTER);
     }
     

@@ -1,6 +1,8 @@
 package com.spectra.intellij.ai.toolwindow.components;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.IconLoader;
+import com.intellij.util.ui.UIUtil;
 
 import javax.swing.*;
 import java.awt.*;
@@ -67,27 +69,35 @@ public class FilterPanel extends JPanel {
         });
         leftFilters.add(statusFilter);
         
-        // Clear filters button
-        JButton clearFiltersButton = new JButton("Clear");
-        clearFiltersButton.addActionListener(e -> clearFilters());
-        leftFilters.add(clearFiltersButton);
         
         add(leftFilters, BorderLayout.WEST);
         
         // Right side - Refresh and Create Issue buttons
         JPanel rightButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
         
-        JButton refreshFilterButton = new JButton("⟲");
-        refreshFilterButton.setToolTipText("Refresh");
+        JButton refreshFilterButton = new JButton();
+        // Use theme-aware icon loading
+        Color textColor = UIUtil.getLabelForeground();
+        boolean isDark = textColor.getRed() > 127; // Light text indicates dark theme
+        System.out.println("____ isDark : " + isDark);
+        if (isDark) {
+            refreshFilterButton.setIcon(IconLoader.getIcon("/icons/refresh_dark.svg", getClass()));
+        } else {
+            refreshFilterButton.setIcon(IconLoader.getIcon("/icons/refresh.svg", getClass()));
+        }
+        refreshFilterButton.setToolTipText("선택된 스프린트의 이슈 목록 새로고침");
         refreshFilterButton.addActionListener(e -> {
             if (onRefresh != null) {
                 onRefresh.accept(null);
             }
         });
         refreshFilterButton.setPreferredSize(new Dimension(30, refreshFilterButton.getPreferredSize().height));
+        refreshFilterButton.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+        refreshFilterButton.setContentAreaFilled(false);
+        refreshFilterButton.setFocusPainted(false);
         rightButtons.add(refreshFilterButton);
         
-        createIssueButton = new JButton("Create Issue");
+        createIssueButton = new JButton("이슈 생성");
         createIssueButton.addActionListener(e -> {
             if (onCreateIssue != null) {
                 onCreateIssue.accept(null);
@@ -98,14 +108,6 @@ public class FilterPanel extends JPanel {
         add(rightButtons, BorderLayout.EAST);
     }
     
-    public void clearFilters() {
-        issueTypeFilter.setSelectedItem(ISSUE_TYPE_ALL_LABEL);
-        assigneeFilter.setSelectedItem(ASSIGNEE_ALL_LABEL);
-        statusFilter.setSelectedItem(STATUS_ALL_LABEL);
-        if (onFilterChanged != null) {
-            onFilterChanged.accept(null);
-        }
-    }
     
     public void clearFilterOptions() {
         // Temporarily disable action listeners to prevent triggering events during clear

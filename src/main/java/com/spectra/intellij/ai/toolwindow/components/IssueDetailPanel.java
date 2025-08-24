@@ -268,6 +268,7 @@ public class IssueDetailPanel extends JPanel {
     public JButton getCancelDescriptionButton() { return cancelDescriptionButton; }
     public JPanel getDescriptionButtonPanel() { return descriptionButtonPanel; }
     public JScrollPane getDescriptionScrollPane() { return descriptionScrollPane; }
+    public JButton getHamburgerMenuButton() { return hamburgerMenuButton; }
     
     // Event handlers setters
     public void setOnHamburgerMenuClick(Consumer<Void> onHamburgerMenuClick) {

@@ -1,12 +1,16 @@
 package com.spectra.intellij.ai.toolwindow.components;
 
 import com.intellij.ui.table.JBTable;
+import com.intellij.util.ui.JBUI;
 import com.spectra.intellij.ai.model.JiraIssue;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.TableRowSorter;
+import javax.swing.table.TableCellRenderer;
 import java.awt.*;
+import java.util.Comparator;
 import java.util.*;
 import java.util.List;
 
@@ -102,11 +106,22 @@ public class IssueStatisticsPanel extends JPanel {
         };
         
         statisticsTable = new JBTable(tableModel);
+        
+        // Enable sorting
+        TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(tableModel);
+        statisticsTable.setRowSorter(sorter);
+        
+        // Set custom comparator for story points columns (columns 1 onwards)
+        for (int i = 1; i < columnNames.size(); i++) {
+            sorter.setComparator(i, new StoryPointsComparator());
+        }
+        
         customizeTable(columnNames.size());
         
-        // Add table to scroll pane
+        // Add table to scroll pane with default styling
         JScrollPane scrollPane = new JScrollPane(statisticsTable);
         scrollPane.setPreferredSize(new Dimension(0, 200));
+        scrollPane.setBorder(JBUI.Borders.customLine(JBUI.CurrentTheme.CustomFrameDecorations.separatorForeground(), 1));
         add(scrollPane, BorderLayout.CENTER);
         
         revalidate();
@@ -119,10 +134,10 @@ public class IssueStatisticsPanel extends JPanel {
         
         // Set column widths dynamically
         for (int i = 0; i < columnCount; i++) {
-            if (i == 0) { // 담당자 column
-                statisticsTable.getColumnModel().getColumn(i).setPreferredWidth(120);
-                statisticsTable.getColumnModel().getColumn(i).setMinWidth(100);
-                statisticsTable.getColumnModel().getColumn(i).setMaxWidth(150);
+            if (i == 0) { // 담당자 column - reduced width by half
+                statisticsTable.getColumnModel().getColumn(i).setPreferredWidth(60);
+                statisticsTable.getColumnModel().getColumn(i).setMinWidth(50);
+                statisticsTable.getColumnModel().getColumn(i).setMaxWidth(75);
             } else { // Status columns
                 statisticsTable.getColumnModel().getColumn(i).setPreferredWidth(80);
                 statisticsTable.getColumnModel().getColumn(i).setMinWidth(70);
@@ -130,8 +145,9 @@ public class IssueStatisticsPanel extends JPanel {
             }
         }
         
-        // Set auto resize mode to match IssueTableManager
+        // Match IssueTableManager table settings - use default JBTable styling
         statisticsTable.setAutoResizeMode(JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS);
+        // Remove custom styling to match default IntelliJ table appearance
         
         // Create custom renderer matching IssueTableManager style
         DefaultTableCellRenderer renderer = new DefaultTableCellRenderer() {
@@ -152,9 +168,21 @@ public class IssueStatisticsPanel extends JPanel {
             }
         };
         
-        // Apply renderer to all columns
+        // Create custom header renderer for center alignment
+        DefaultTableCellRenderer headerRenderer = new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value,
+                    boolean isSelected, boolean hasFocus, int row, int column) {
+                super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                setHorizontalAlignment(SwingConstants.CENTER);
+                return this;
+            }
+        };
+        
+        // Apply minimal renderer to all columns
         for (int i = 0; i < statisticsTable.getColumnCount(); i++) {
             statisticsTable.getColumnModel().getColumn(i).setCellRenderer(renderer);
+            statisticsTable.getColumnModel().getColumn(i).setHeaderRenderer(headerRenderer);
         }
     }
     
@@ -281,5 +309,33 @@ public class IssueStatisticsPanel extends JPanel {
         // Reset to minimal columns when clearing
         this.availableStatuses = new ArrayList<>();
         createTableWithColumns(Arrays.asList("담당자", "전체"));
+    }
+    
+    // Custom comparator for story points columns
+    private static class StoryPointsComparator implements Comparator<String> {
+        @Override
+        public int compare(String s1, String s2) {
+            // Extract story points from format "count/points"
+            double points1 = extractStoryPoints(s1);
+            double points2 = extractStoryPoints(s2);
+            return Double.compare(points1, points2);
+        }
+        
+        private double extractStoryPoints(String value) {
+            if (value == null || value.trim().isEmpty()) {
+                return 0.0;
+            }
+            
+            try {
+                // Format is "count/points" - extract points part
+                String[] parts = value.split("/");
+                if (parts.length >= 2) {
+                    return Double.parseDouble(parts[1]);
+                }
+                return 0.0;
+            } catch (NumberFormatException e) {
+                return 0.0;
+            }
+        }
     }
 }
