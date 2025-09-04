@@ -6,6 +6,7 @@ import com.intellij.openapi.ui.Messages;
 import com.spectra.intellij.ai.model.JiraIssue;
 import com.spectra.intellij.ai.model.JiraSprint;
 import com.spectra.intellij.ai.model.JiraEpic;
+import com.spectra.intellij.ai.model.AIRecommendationResponse;
 import com.spectra.intellij.ai.service.JiraService;
 import com.spectra.intellij.ai.settings.JiraSettings;
 import com.spectra.intellij.ai.settings.RecentJiraSettings;
@@ -30,6 +31,7 @@ public class CreateIssueDialog extends DialogWrapper {
     private JComboBox<String> assigneeComboBox;
     private JLabel assigneeDisplayLabel;
     private JLabel epicDisplayLabel;
+    private JTextField storyPointsField;
     private String selectedAssignee;
     private JiraEpic selectedEpic;
     private JiraIssue issue;
@@ -51,6 +53,7 @@ public class CreateIssueDialog extends DialogWrapper {
         setTitle("Create Jira Issue");
         init();
         loadData();
+        loadCurrentUser(); // Load and pre-select current user as assignee
     }
     
     @Override
@@ -155,17 +158,22 @@ public class CreateIssueDialog extends DialogWrapper {
         });
         
         aiRecommendEpicButton = new JButton("AI 추천");
-        aiRecommendEpicButton.addActionListener(e -> {
-            // TODO: AI recommendation functionality will be implemented later
-            Messages.showInfoMessage(project, "AI Epic 추천 기능은 추후 구현될 예정입니다.", "AI 추천");
-        });
+        aiRecommendEpicButton.addActionListener(e -> performAIRecommendation());
         
         epicPanel.add(epicDisplayLabel, BorderLayout.CENTER);
         epicPanel.add(aiRecommendEpicButton, BorderLayout.EAST);
         panel.add(epicPanel, gbc);
         
-        // Assignee
+        // Story Points
         gbc.gridx = 0; gbc.gridy = 6; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
+        panel.add(new JLabel("Story Points:"), gbc);
+        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
+        storyPointsField = new JTextField(10);
+        storyPointsField.setToolTipText("스토리 포인트를 입력하세요 (예: 1, 2, 3, 5, 8)");
+        panel.add(storyPointsField, gbc);
+        
+        // Assignee
+        gbc.gridx = 0; gbc.gridy = 7; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
         panel.add(new JLabel("담당자:"), gbc);
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
         
@@ -221,6 +229,25 @@ public class CreateIssueDialog extends DialogWrapper {
             
             if (selectedAssignee != null && !"할당되지 않음".equals(selectedAssignee)) {
                 issue.setAssignee(selectedAssignee);
+            }
+            
+            // Set story points if provided
+            String storyPointsText = storyPointsField.getText().trim();
+            if (!storyPointsText.isEmpty()) {
+                try {
+                    Double storyPoints = Double.parseDouble(storyPointsText);
+                    issue.setStoryPoints(storyPoints);
+                } catch (NumberFormatException e) {
+                    // Invalid story points input - show error
+                    JOptionPane.showMessageDialog(
+                        getContentPane(),
+                        "Story Points must be a valid number",
+                        "Validation Error",
+                        JOptionPane.ERROR_MESSAGE
+                    );
+                    storyPointsField.requestFocus();
+                    return;
+                }
             }
             
             // Save recent values for next time
@@ -609,5 +636,116 @@ public class CreateIssueDialog extends DialogWrapper {
                 }
             }
         }
+    }
+
+    private void loadCurrentUser() {
+        jiraService.getCurrentUserAsync()
+            .thenAccept(currentUser -> {
+                SwingUtilities.invokeLater(() -> {
+                    if (currentUser != null && currentUser.has("displayName")) {
+                        String displayName = currentUser.get("displayName").getAsString();
+                        selectedAssignee = displayName;
+                        assigneeDisplayLabel.setText(displayName);
+                    }
+                });
+            })
+            .exceptionally(throwable -> {
+                SwingUtilities.invokeLater(() -> {
+                    // Silently fail - user can still manually select assignee
+                    System.err.println("Warning: Failed to load current user: " + throwable.getMessage());
+                });
+                return null;
+            });
+    }
+
+    private void performAIRecommendation() {
+        String currentSummary = summaryField.getText().trim();
+        if (currentSummary.isEmpty()) {
+            Messages.showWarningDialog(project, "AI 추천을 받으려면 먼저 이슈 제목을 입력하세요.", "입력 필요");
+            summaryField.requestFocus();
+            return;
+        }
+
+        // Disable button during processing
+        aiRecommendEpicButton.setEnabled(false);
+        aiRecommendEpicButton.setText("추천 중...");
+
+        // Load epics and get AI recommendation
+        jiraService.getEpicListAsync()
+            .thenCompose(epics -> {
+                if (epics.isEmpty()) {
+                    throw new RuntimeException("Epic이 없습니다. AI 추천을 받으려면 최소 하나의 Epic이 필요합니다.");
+                }
+                return jiraService.getEpicRecommendationAsync(currentSummary, epics);
+            })
+            .thenAccept(response -> SwingUtilities.invokeLater(() -> {
+                handleAIRecommendationResponse(response);
+            }))
+            .exceptionally(throwable -> {
+                SwingUtilities.invokeLater(() -> {
+                    aiRecommendEpicButton.setEnabled(true);
+                    aiRecommendEpicButton.setText("AI 추천");
+                    
+                    String errorMessage = "AI 추천 중 오류가 발생했습니다: " + throwable.getMessage();
+                    Messages.showErrorDialog(project, errorMessage, "AI 추천 오류");
+                });
+                return null;
+            });
+    }
+
+    private void handleAIRecommendationResponse(AIRecommendationResponse response) {
+        // Re-enable button
+        aiRecommendEpicButton.setEnabled(true);
+        aiRecommendEpicButton.setText("AI 추천");
+
+        if (response == null || !"success".equals(response.getStatus()) || 
+            response.getAi_result() == null || 
+            response.getAi_result().getEpics() == null || 
+            response.getAi_result().getEpics().isEmpty()) {
+            
+            Messages.showInfoMessage(project, "AI가 추천할 만한 적절한 Epic을 찾지 못했습니다.", "추천 결과 없음");
+            return;
+        }
+
+        // Get the first recommended epic
+        AIRecommendationResponse.RecommendedEpic recommendedEpic = response.getAi_result().getEpics().get(0);
+        String recommendedKey = recommendedEpic.getKey();
+
+        // Load all epics to find the matching one
+        jiraService.getEpicListAsync()
+            .thenAccept(allEpics -> SwingUtilities.invokeLater(() -> {
+                JiraEpic matchingEpic = null;
+                for (JiraEpic epic : allEpics) {
+                    if (recommendedKey.equals(epic.getKey())) {
+                        matchingEpic = epic;
+                        break;
+                    }
+                }
+
+                if (matchingEpic != null) {
+                    // Auto-select the recommended epic
+                    selectedEpic = matchingEpic;
+                    epicDisplayLabel.setText(matchingEpic.getKey() + " - " + matchingEpic.getSummary());
+                    
+                    // Show success message
+                    Messages.showInfoMessage(project, 
+                        "AI가 추천한 Epic이 자동 선택되었습니다:\n" + 
+                        matchingEpic.getKey() + " - " + matchingEpic.getSummary(), 
+                        "AI 추천 완료");
+                } else {
+                    Messages.showWarningDialog(project, 
+                        "AI가 추천한 Epic(" + recommendedKey + ")을 찾을 수 없습니다.\n" + 
+                        "수동으로 Epic을 선택해 주세요.", 
+                        "Epic 찾기 실패");
+                }
+            }))
+            .exceptionally(throwable -> {
+                SwingUtilities.invokeLater(() -> {
+                    Messages.showErrorDialog(project, 
+                        "Epic 목록을 다시 로드하는 중 오류가 발생했습니다: " + throwable.getMessage(), 
+                        "오류");
+                });
+                return null;
+            });
     }
 }

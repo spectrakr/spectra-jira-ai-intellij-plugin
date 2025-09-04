@@ -204,7 +204,8 @@ public class JiraToolWindowContent {
         filterPanel.setOnFilterChanged(v -> applyFilters());
         filterPanel.setOnRefresh(v -> {
             refreshStatus();
-            loadSprints();
+            // Refresh current sprint issues instead of reloading all sprints
+            refreshCurrentSprintIssues();
         });
         filterPanel.setOnCreateIssue(v -> createIssue());
         

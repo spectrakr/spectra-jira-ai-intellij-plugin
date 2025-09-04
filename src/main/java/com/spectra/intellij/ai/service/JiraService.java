@@ -6,6 +6,8 @@ import com.google.gson.JsonArray;
 import com.spectra.intellij.ai.model.JiraIssue;
 import com.spectra.intellij.ai.model.JiraSprint;
 import com.spectra.intellij.ai.model.JiraEpic;
+import com.spectra.intellij.ai.model.AIRecommendationRequest;
+import com.spectra.intellij.ai.model.AIRecommendationResponse;
 import okhttp3.*;
 import org.apache.commons.lang3.StringUtils;
 
@@ -383,6 +385,11 @@ public class JiraService {
         // Add epic link if specified
         if (StringUtils.isNotBlank(issue.getEpicKey())) {
             fields.addProperty("customfield_10014", issue.getEpicKey()); // Epic Link field
+        }
+
+        // Add story points if specified
+        if (issue.getStoryPoints() != null) {
+            fields.addProperty("customfield_10016", issue.getStoryPoints()); // Story Points field
         }
         
         issuePayload.add("fields", fields);
@@ -1699,6 +1706,55 @@ public class JiraService {
             case "ghx-label-13": return "#128759";
             case "ghx-label-14": return "#DD350D";
             default: return null;
+        }
+    }
+
+    public CompletableFuture<AIRecommendationResponse> getEpicRecommendationAsync(String summary, List<JiraEpic> availableEpics) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return getEpicRecommendation(summary, availableEpics);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to get AI recommendation", e);
+            }
+        });
+    }
+
+    public AIRecommendationResponse getEpicRecommendation(String summary, List<JiraEpic> availableEpics) throws IOException {
+        String url = "http://172.16.120.182:8001/jira/epic/suggest";
+        
+        // Build epic list string - limit to 10 epics
+        StringBuilder epicListBuilder = new StringBuilder();
+        int count = 0;
+        for (JiraEpic epic : availableEpics) {
+            if (count >= 20) break;
+            if (count > 0) epicListBuilder.append("\n");
+            epicListBuilder.append("- ").append(epic.getKey()).append(": ").append(epic.getSummary());
+            count++;
+        }
+        
+        AIRecommendationRequest request = new AIRecommendationRequest(summary, epicListBuilder.toString());
+        
+        RequestBody body = RequestBody.create(
+            gson.toJson(request),
+            MediaType.parse("application/json")
+        );
+
+        logRequest("POST", url, gson.toJson(request));
+        
+        Request httpRequest = new Request.Builder()
+            .url(url)
+            .post(body)
+            .addHeader("Content-Type", "application/json")
+            .build();
+        
+        try (Response response = client.newCall(httpRequest).execute()) {
+            String responseBody = response.body() != null ? response.body().string() : "";
+
+            if (!response.isSuccessful()) {
+                throw new IOException("Failed to get AI recommendation: " + response.code() + " - " + responseBody);
+            }
+            
+            return gson.fromJson(responseBody, AIRecommendationResponse.class);
         }
     }
 }
