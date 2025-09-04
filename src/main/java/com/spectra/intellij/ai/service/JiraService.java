@@ -21,6 +21,11 @@ public class JiraService {
     private static final String JIRA_API_VERSION_3 = "3";
     private static final String AGILE_API_VERSION = "1.0";
     
+    // Jira Custom Fields
+    private static final String CUSTOMFIELD_EPIC_COLOR = "customfield_10013";
+    private static final String CUSTOMFIELD_EPIC_LINK = "customfield_10014"; 
+    private static final String CUSTOMFIELD_STORY_POINTS = "customfield_10105";
+    
     private final OkHttpClient client;
     private final Gson gson;
     private String baseUrl;
@@ -384,12 +389,12 @@ public class JiraService {
 
         // Add epic link if specified
         if (StringUtils.isNotBlank(issue.getEpicKey())) {
-            fields.addProperty("customfield_10014", issue.getEpicKey()); // Epic Link field
+            fields.addProperty(CUSTOMFIELD_EPIC_LINK, issue.getEpicKey()); // Epic Link field
         }
 
         // Add story points if specified
         if (issue.getStoryPoints() != null) {
-            fields.addProperty("customfield_10016", issue.getStoryPoints()); // Story Points field
+            fields.addProperty(CUSTOMFIELD_STORY_POINTS, issue.getStoryPoints()); // Story Points field
         }
         
         issuePayload.add("fields", fields);
@@ -598,8 +603,8 @@ public class JiraService {
         }
         
         // Parse story points from customfield_10105
-        if (fields.has("customfield_10105") && !fields.get("customfield_10105").isJsonNull()) {
-            issue.setStoryPoints(fields.get("customfield_10105").getAsDouble());
+        if (fields.has(CUSTOMFIELD_STORY_POINTS) && !fields.get(CUSTOMFIELD_STORY_POINTS).isJsonNull()) {
+            issue.setStoryPoints(fields.get(CUSTOMFIELD_STORY_POINTS).getAsDouble());
         }
         
         // Parse parent (Epic) information
@@ -622,9 +627,9 @@ public class JiraService {
         }
         
         // Also check for Epic Link (customfield_10014) for issues linked to Epics
-        if (fields.has("customfield_10014") && !fields.get("customfield_10014").isJsonNull()) {
+        if (fields.has(CUSTOMFIELD_EPIC_LINK) && !fields.get(CUSTOMFIELD_EPIC_LINK).isJsonNull()) {
             // Epic Link field contains the Epic key
-            String epicKey = fields.get("customfield_10014").getAsString();
+            String epicKey = fields.get(CUSTOMFIELD_EPIC_LINK).getAsString();
             if (issue.getParentKey() == null) { // Only set if parent wasn't already found
                 issue.setParentKey(epicKey);
                 // We'll need to fetch the Epic details separately for summary and color
@@ -663,8 +668,8 @@ public class JiraService {
             
             // For Epic issues, try to get Epic color from renderedFields
             if ("Epic".equals(issue.getIssueType())) {
-                if (renderedFields.has("customfield_10013") && !renderedFields.get("customfield_10013").isJsonNull()) {
-                    String epicColorCode = renderedFields.get("customfield_10013").getAsString();
+                if (renderedFields.has(CUSTOMFIELD_EPIC_COLOR) && !renderedFields.get(CUSTOMFIELD_EPIC_COLOR).isJsonNull()) {
+                    String epicColorCode = renderedFields.get(CUSTOMFIELD_EPIC_COLOR).getAsString();
                     String hexColor = mapGhxLabelToHex(epicColorCode);
                     issue.setEpicColor(hexColor);
                 }
@@ -742,8 +747,8 @@ public class JiraService {
         }
         
         // Parse story points from customfield_10105
-        if (fields.has("customfield_10105") && !fields.get("customfield_10105").isJsonNull()) {
-            issue.setStoryPoints(fields.get("customfield_10105").getAsDouble());
+        if (fields.has(CUSTOMFIELD_STORY_POINTS) && !fields.get(CUSTOMFIELD_STORY_POINTS).isJsonNull()) {
+            issue.setStoryPoints(fields.get(CUSTOMFIELD_STORY_POINTS).getAsDouble());
         }
         
         // Parse priority iconUrl from renderedFields (if available)
@@ -827,16 +832,6 @@ public class JiraService {
         }
     }
 
-    public CompletableFuture<String> getProjectIdAsync(String projectKey) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return getProjectId(projectKey);
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to fetch project ID", e);
-            }
-        });
-    }
-
     public String getProjectId(String projectKey) throws IOException {
         String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/project/" + projectKey;
         logRequest("GET", url);
@@ -851,16 +846,6 @@ public class JiraService {
             JsonObject projectJson = gson.fromJson(responseBody, JsonObject.class);
             return projectJson.get("id").getAsString();
         }
-    }
-
-    public CompletableFuture<List<JiraIssue>> getProjectIssuesAsync(String projectKey) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return getProjectIssues(projectKey);
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to fetch project issues", e);
-            }
-        });
     }
 
     public List<JiraIssue> getProjectIssues(String projectKey) throws IOException {
@@ -885,7 +870,7 @@ public class JiraService {
         fields.add("priority");
         fields.add("issuetype");
         fields.add("updated");
-        fields.add("customfield_10105"); // Story Points
+        fields.add(CUSTOMFIELD_STORY_POINTS); // Story Points
         requestBody.add("fields", fields);
         
         RequestBody body = RequestBody.create(
@@ -976,10 +961,10 @@ public class JiraService {
         
         // Update story points (custom field) - must be in fields object
         if (issue.getStoryPoints() != null) {
-            fields.addProperty("customfield_10105", issue.getStoryPoints());
+            fields.addProperty(CUSTOMFIELD_STORY_POINTS, issue.getStoryPoints());
         } else {
             // Explicitly set to null to clear the field
-            fields.add("customfield_10105", null);
+            fields.add(CUSTOMFIELD_STORY_POINTS, null);
         }
         
         // Update parent/epic link
@@ -987,7 +972,7 @@ public class JiraService {
             if (issue.getParentKey().isEmpty()) {
                 // Remove parent/epic link by setting to null
                 fields.add("parent", null);
-                fields.add("customfield_10014", null);
+                fields.add(CUSTOMFIELD_EPIC_LINK, null);
             } else {
                 // Set parent (for sub-tasks) or epic link (for stories/tasks)
                 // Try parent field first (for sub-tasks)
@@ -996,7 +981,7 @@ public class JiraService {
                 fields.add("parent", parent);
                 
                 // Also set epic link field (customfield_10014) for epic associations
-                fields.addProperty("customfield_10014", issue.getParentKey());
+                fields.addProperty(CUSTOMFIELD_EPIC_LINK, issue.getParentKey());
             }
         }
         
@@ -1112,7 +1097,7 @@ public class JiraService {
 
     public List<String> getProjectUsers(String projectKey) throws IOException {
         // Try different approaches to get assignable users
-        List<String> users = new ArrayList<>();
+        List<String> users;
         
         // First try: Use assignable search with project key
         try {
@@ -1474,10 +1459,10 @@ public class JiraService {
         JsonObject fields = new JsonObject();
         
         if (storyPoints != null) {
-            fields.addProperty("customfield_10105", storyPoints);
+            fields.addProperty(CUSTOMFIELD_STORY_POINTS, storyPoints);
         } else {
             // Clear story points
-            fields.add("customfield_10105", null);
+            fields.add(CUSTOMFIELD_STORY_POINTS, null);
         }
         
         updatePayload.add("fields", fields);
@@ -1582,11 +1567,11 @@ public class JiraService {
             fields.add("parent", parent);
             
             // Also set epic link field (customfield_10014) for epic associations
-            fields.addProperty("customfield_10014", parentKey);
+            fields.addProperty(CUSTOMFIELD_EPIC_LINK, parentKey);
         } else {
             // Remove parent/epic link by setting to null
             fields.add("parent", null);
-            fields.add("customfield_10014", null);
+            fields.add(CUSTOMFIELD_EPIC_LINK, null);
         }
         
         updatePayload.add("fields", fields);
@@ -1662,8 +1647,8 @@ public class JiraService {
             String epicColor = null;
             if (issueJson.has("renderedFields")) {
                 JsonObject renderedFields = issueJson.getAsJsonObject("renderedFields");
-                if (renderedFields.has("customfield_10013") && !renderedFields.get("customfield_10013").isJsonNull()) {
-                    String epicColorCode = renderedFields.get("customfield_10013").getAsString();
+                if (renderedFields.has(CUSTOMFIELD_EPIC_COLOR) && !renderedFields.get(CUSTOMFIELD_EPIC_COLOR).isJsonNull()) {
+                    String epicColorCode = renderedFields.get(CUSTOMFIELD_EPIC_COLOR).getAsString();
                     epicColor = mapGhxLabelToHex(epicColorCode);
                 }
             }
@@ -1689,24 +1674,24 @@ public class JiraService {
         if (ghxLabel == null) {
             return null;
         }
-        
-        switch (ghxLabel) {
-            case "ghx-label-1": return "#243859";
-            case "ghx-label-2": return "#FA9920";
-            case "ghx-label-3": return "#FAC304";
-            case "ghx-label-4": return "#2A53CC";
-            case "ghx-label-5": return "#2AA3BF";
-            case "ghx-label-6": return "#58D8A4";
-            case "ghx-label-7": return "#8677D9";
-            case "ghx-label-8": return "#5244AA";
-            case "ghx-label-9": return "#FA7353";
-            case "ghx-label-10": return "#3884FF";
-            case "ghx-label-11": return "#34C7E6";
-            case "ghx-label-12": return "#6B778C";
-            case "ghx-label-13": return "#128759";
-            case "ghx-label-14": return "#DD350D";
-            default: return null;
-        }
+
+        return switch (ghxLabel) {
+            case "ghx-label-1" -> "#243859";
+            case "ghx-label-2" -> "#FA9920";
+            case "ghx-label-3" -> "#FAC304";
+            case "ghx-label-4" -> "#2A53CC";
+            case "ghx-label-5" -> "#2AA3BF";
+            case "ghx-label-6" -> "#58D8A4";
+            case "ghx-label-7" -> "#8677D9";
+            case "ghx-label-8" -> "#5244AA";
+            case "ghx-label-9" -> "#FA7353";
+            case "ghx-label-10" -> "#3884FF";
+            case "ghx-label-11" -> "#34C7E6";
+            case "ghx-label-12" -> "#6B778C";
+            case "ghx-label-13" -> "#128759";
+            case "ghx-label-14" -> "#DD350D";
+            default -> null;
+        };
     }
 
     public CompletableFuture<AIRecommendationResponse> getEpicRecommendationAsync(String summary, List<JiraEpic> availableEpics) {
