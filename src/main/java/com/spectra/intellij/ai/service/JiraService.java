@@ -242,14 +242,13 @@ public class JiraService {
     }
 
     public List<JiraEpic> getEpicList() throws IOException {
-        String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/search";
+        String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/search/jql";
         
         // JQL to get Epics from project
         String jql = "project = " + getProjectKey() + " AND issuetype = Epic ORDER BY updated DESC";
         
         JsonObject requestBody = new JsonObject();
         requestBody.addProperty("jql", jql);
-        requestBody.addProperty("startAt", 0);
         requestBody.addProperty("maxResults", 50);
         
         // Specify fields to retrieve
@@ -777,12 +776,12 @@ public class JiraService {
     }
     
     private void logRequest(String method, String url) {
-        System.out.println("[HTTP Request]");
+        System.out.println("##### [HTTP Request] #####");
         System.out.println("[url] " + method + " " + url);
     }
     
     private void logRequest(String method, String url, String body) {
-        System.out.println("[HTTP Request]");
+        System.out.println("##### [HTTP Request] #####");
         System.out.println("[url] " + method + " " + url);
         System.out.println("[body]");
         System.out.println(body);
