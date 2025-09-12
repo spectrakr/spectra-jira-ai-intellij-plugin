@@ -5,16 +5,16 @@
     <vendor email="kmhan@spectra.co.kr" url="https://github.com/spectra-team/spectra-jira-ai-intellij-plugin">Spectra</vendor>
 
     <description><![CDATA[
-      IntelliJ IDEA plugin for Jira integration with AI capabilities.
+      AI 기능을 갖춘 Jira 통합 IntelliJ IDEA 플러그인입니다.
       
-      Features include:
-      - Jira issue creation with sprint selection
-      - Dynamic issue type selection
-      - Automatic configuration persistence
-      - Integration with Jira Cloud API v3
-      - Auto-update support via custom repository
+      주요 기능:
+      - 스프린트 선택을 통한 Jira 이슈 생성
+      - 동적 이슈 유형 선택
+      - 자동 설정 저장
+      - Jira Cloud API v3 통합
+      - 사용자 정의 저장소를 통한 자동 업데이트 지원
       
-      Configure your Jira connection in Settings > Tools > Spectra Jira Settings
+      Settings > Tools > Spectra Jira Settings에서 Jira 연결을 구성하세요
     ]]></description>
 
     <change-notes><![CDATA[
