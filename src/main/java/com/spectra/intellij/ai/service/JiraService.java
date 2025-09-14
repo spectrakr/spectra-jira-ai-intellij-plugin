@@ -25,7 +25,11 @@ public class JiraService {
     private static final String CUSTOMFIELD_EPIC_COLOR = "customfield_10013";
     private static final String CUSTOMFIELD_EPIC_LINK = "customfield_10014"; 
     private static final String CUSTOMFIELD_STORY_POINTS = "customfield_10105";
+    private static final String CUSTOMFIELD_STORY_POINTS_ESTIMATE = "customfield_10016";
     
+    // Project-specific constants - projects that use CUSTOMFIELD_STORY_POINTS_ESTIMATE
+    private static final String[] PROJECTS_USING_STORY_POINTS_ESTIMATE = {"DEVCS"};
+
     private final OkHttpClient client;
     private final Gson gson;
     private String baseUrl;
@@ -65,6 +69,20 @@ public class JiraService {
     
     public void setProjectKey(String projectKey) {
         this.projectKey = projectKey;
+    }
+    
+    /**
+     * Returns the appropriate story points custom field based on project key
+     * @return the custom field ID for story points
+     */
+    private String getStoryPointsField() {
+        String currentProjectKey = getProjectKey();
+        for (String projectKey : PROJECTS_USING_STORY_POINTS_ESTIMATE) {
+            if (projectKey.equals(currentProjectKey)) {
+                return CUSTOMFIELD_STORY_POINTS_ESTIMATE;
+            }
+        }
+        return CUSTOMFIELD_STORY_POINTS;
     }
     
     public String getProjectKey() {
@@ -393,7 +411,7 @@ public class JiraService {
 
         // Add story points if specified
         if (issue.getStoryPoints() != null) {
-            fields.addProperty(CUSTOMFIELD_STORY_POINTS, issue.getStoryPoints()); // Story Points field
+            fields.addProperty(getStoryPointsField(), issue.getStoryPoints()); // Story Points field
         }
         
         issuePayload.add("fields", fields);
@@ -601,9 +619,10 @@ public class JiraService {
             issue.setIssueTypeId(issuetype.get("id").getAsString());
         }
         
-        // Parse story points from customfield_10105
-        if (fields.has(CUSTOMFIELD_STORY_POINTS) && !fields.get(CUSTOMFIELD_STORY_POINTS).isJsonNull()) {
-            issue.setStoryPoints(fields.get(CUSTOMFIELD_STORY_POINTS).getAsDouble());
+        // Parse story points from appropriate custom field based on project
+        String storyPointsField = getStoryPointsField();
+        if (fields.has(storyPointsField) && !fields.get(storyPointsField).isJsonNull()) {
+            issue.setStoryPoints(fields.get(storyPointsField).getAsDouble());
         }
         
         // Parse parent (Epic) information
@@ -745,9 +764,10 @@ public class JiraService {
             issue.setIssueTypeId(issuetype.get("id").getAsString());
         }
         
-        // Parse story points from customfield_10105
-        if (fields.has(CUSTOMFIELD_STORY_POINTS) && !fields.get(CUSTOMFIELD_STORY_POINTS).isJsonNull()) {
-            issue.setStoryPoints(fields.get(CUSTOMFIELD_STORY_POINTS).getAsDouble());
+        // Parse story points from appropriate custom field based on project
+        String storyPointsField = getStoryPointsField();
+        if (fields.has(storyPointsField) && !fields.get(storyPointsField).isJsonNull()) {
+            issue.setStoryPoints(fields.get(storyPointsField).getAsDouble());
         }
         
         // Parse priority iconUrl from renderedFields (if available)
@@ -869,7 +889,7 @@ public class JiraService {
         fields.add("priority");
         fields.add("issuetype");
         fields.add("updated");
-        fields.add(CUSTOMFIELD_STORY_POINTS); // Story Points
+        fields.add(getStoryPointsField()); // Story Points
         requestBody.add("fields", fields);
         
         RequestBody body = RequestBody.create(
@@ -959,11 +979,12 @@ public class JiraService {
         }
         
         // Update story points (custom field) - must be in fields object
+        String storyPointsField = getStoryPointsField();
         if (issue.getStoryPoints() != null) {
-            fields.addProperty(CUSTOMFIELD_STORY_POINTS, issue.getStoryPoints());
+            fields.addProperty(storyPointsField, issue.getStoryPoints());
         } else {
             // Explicitly set to null to clear the field
-            fields.add(CUSTOMFIELD_STORY_POINTS, null);
+            fields.add(storyPointsField, null);
         }
         
         // Update parent/epic link
@@ -1457,11 +1478,12 @@ public class JiraService {
         JsonObject updatePayload = new JsonObject();
         JsonObject fields = new JsonObject();
         
+        String storyPointsField = getStoryPointsField();
         if (storyPoints != null) {
-            fields.addProperty(CUSTOMFIELD_STORY_POINTS, storyPoints);
+            fields.addProperty(storyPointsField, storyPoints);
         } else {
             // Clear story points
-            fields.add(CUSTOMFIELD_STORY_POINTS, null);
+            fields.add(storyPointsField, null);
         }
         
         updatePayload.add("fields", fields);
