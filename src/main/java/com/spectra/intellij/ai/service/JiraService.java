@@ -28,7 +28,7 @@ public class JiraService {
     private static final String CUSTOMFIELD_STORY_POINTS_ESTIMATE = "customfield_10016";
     
     // Project-specific constants - projects that use CUSTOMFIELD_STORY_POINTS_ESTIMATE
-    private static final String[] PROJECTS_USING_STORY_POINTS_ESTIMATE = {"DEVCS"};
+    private static final String[] PROJECTS_USING_STORY_POINTS_ESTIMATE = {"DWFLOW"};
 
     private final OkHttpClient client;
     private final Gson gson;
