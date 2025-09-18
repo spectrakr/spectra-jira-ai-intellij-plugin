@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.spectra.intellij.ai'
-version = '1.0.15'
+version = '1.0.16'
 
 // Dynamic version from Git tag or environment variable
 def getVersionName() {
