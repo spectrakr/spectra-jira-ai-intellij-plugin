@@ -23,6 +23,7 @@ public class CreateIssueDialog extends DialogWrapper {
     
     private JTextField summaryField;
     private JTextArea descriptionArea;
+    private JButton aiGenerateButton;
     private JComboBox<String> priorityComboBox;
     private JComboBox<String> issueTypeComboBox;
     private JComboBox<JiraSprint> sprintComboBox;
@@ -79,16 +80,24 @@ public class CreateIssueDialog extends DialogWrapper {
         descriptionArea = new JTextArea(12, 45);
         descriptionArea.setLineWrap(true);
         descriptionArea.setWrapStyleWord(true);
-        descriptionArea.setBorder(BorderFactory.createLineBorder(new Color(150, 150, 150), 1)); // Add padding inside
+        descriptionArea.setBorder(BorderFactory.createLineBorder(new Color(150, 150, 150), 1));
         JScrollPane descriptionScrollPane = new JScrollPane(descriptionArea);
-        // Ensure the scroll pane has the same border style as other input fields
         descriptionScrollPane.setBorder(summaryField.getBorder());
         descriptionScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         descriptionScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         panel.add(descriptionScrollPane, gbc);
         
+        // AI Generate Button
+        gbc.gridx = 1; gbc.gridy = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0; gbc.weighty = 0;
+        gbc.anchor = GridBagConstraints.WEST;
+        aiGenerateButton = new JButton("(AI) 내용 자동 생성");
+        aiGenerateButton.addActionListener(e -> performAIWorkGeneration());
+        aiGenerateButton.setPreferredSize(new Dimension(100, 25));
+        aiGenerateButton.setFont(aiGenerateButton.getFont().deriveFont(11.0f));
+        panel.add(aiGenerateButton, gbc);
+        
         // Priority
-        gbc.gridx = 0; gbc.gridy = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0; gbc.weighty = 0;
+        gbc.gridx = 0; gbc.gridy = 3; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0; gbc.weighty = 0;
         gbc.anchor = GridBagConstraints.WEST;
         panel.add(new JLabel("Priority:"), gbc);
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
@@ -104,7 +113,7 @@ public class CreateIssueDialog extends DialogWrapper {
         panel.add(priorityComboBox, gbc);
         
         // Sprint
-        gbc.gridx = 0; gbc.gridy = 3; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
+        gbc.gridx = 0; gbc.gridy = 4; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
         panel.add(new JLabel("Sprint:"), gbc);
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
         sprintComboBox = new JComboBox<>();
@@ -122,14 +131,14 @@ public class CreateIssueDialog extends DialogWrapper {
         panel.add(sprintComboBox, gbc);
         
         // Issue Type
-        gbc.gridx = 0; gbc.gridy = 4; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
+        gbc.gridx = 0; gbc.gridy = 5; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
         panel.add(new JLabel("Issue Type:"), gbc);
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
         issueTypeComboBox = new JComboBox<>();
         panel.add(issueTypeComboBox, gbc);
         
         // Epic
-        gbc.gridx = 0; gbc.gridy = 5; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
+        gbc.gridx = 0; gbc.gridy = 6; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
         panel.add(new JLabel("상위항목:"), gbc);
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
         
@@ -165,7 +174,7 @@ public class CreateIssueDialog extends DialogWrapper {
         panel.add(epicPanel, gbc);
         
         // Story Points
-        gbc.gridx = 0; gbc.gridy = 6; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
+        gbc.gridx = 0; gbc.gridy = 7; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
         panel.add(new JLabel("Story Points:"), gbc);
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
         storyPointsField = new JTextField(10);
@@ -173,7 +182,7 @@ public class CreateIssueDialog extends DialogWrapper {
         panel.add(storyPointsField, gbc);
         
         // Assignee
-        gbc.gridx = 0; gbc.gridy = 7; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
+        gbc.gridx = 0; gbc.gridy = 8; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
         panel.add(new JLabel("담당자:"), gbc);
         gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
         
@@ -744,6 +753,51 @@ public class CreateIssueDialog extends DialogWrapper {
                     Messages.showErrorDialog(project, 
                         "Epic 목록을 다시 로드하는 중 오류가 발생했습니다: " + throwable.getMessage(), 
                         "오류");
+                });
+                return null;
+            });
+    }
+
+    private void performAIWorkGeneration() {
+        String summary = summaryField.getText().trim();
+        if (summary.isEmpty()) {
+            Messages.showWarningDialog(project, "AI 작업 생성을 위해 먼저 Summary를 입력하세요.", "입력 필요");
+            summaryField.requestFocus();
+            return;
+        }
+
+        // Disable button during processing
+        aiGenerateButton.setEnabled(false);
+        aiGenerateButton.setText("생성 중...");
+
+        // Call AI service to generate work description based on summary
+        jiraService.generateWorkDescriptionAsync(summary)
+            .thenAccept(generatedDescription -> SwingUtilities.invokeLater(() -> {
+                // Re-enable button
+                aiGenerateButton.setEnabled(true);
+                aiGenerateButton.setText("(AI) 내용 자동 생성");
+                
+                if (generatedDescription != null && !generatedDescription.trim().isEmpty()) {
+                    // Append AI-generated content to the end of description
+                    String currentDescription = descriptionArea.getText().trim();
+                    if (currentDescription.isEmpty()) {
+                        descriptionArea.setText(generatedDescription);
+                    } else {
+                        descriptionArea.setText(currentDescription + "\n\n" + generatedDescription);
+                    }
+                    // Show success message
+                    Messages.showInfoMessage(project, "Summary를 기반으로 작업 내용이 자동 생성되어 Description에 추가되었습니다.", "AI 작업 생성 완료");
+                } else {
+                    Messages.showWarningDialog(project, "AI가 작업 내용을 생성하지 못했습니다. 다시 시도해 주세요.", "생성 실패");
+                }
+            }))
+            .exceptionally(throwable -> {
+                SwingUtilities.invokeLater(() -> {
+                    aiGenerateButton.setEnabled(true);
+                    aiGenerateButton.setText("(AI) 내용 자동 생성");
+                    
+                    String errorMessage = "AI 작업 생성 중 오류가 발생했습니다: " + throwable.getMessage();
+                    Messages.showErrorDialog(project, errorMessage, "AI 작업 생성 오류");
                 });
                 return null;
             });

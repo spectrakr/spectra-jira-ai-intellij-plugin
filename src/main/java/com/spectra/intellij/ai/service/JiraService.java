@@ -1725,6 +1725,26 @@ public class JiraService {
         });
     }
 
+    public CompletableFuture<String> generateDescriptionAsync(String aiRequest) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return generateDescription(aiRequest);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to generate description", e);
+            }
+        });
+    }
+
+    public CompletableFuture<String> generateWorkDescriptionAsync(String summary) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return generateWorkDescription(summary);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to generate work description", e);
+            }
+        });
+    }
+
     public AIRecommendationResponse getEpicRecommendation(String summary, List<JiraEpic> availableEpics) throws IOException {
         String url = "http://172.16.120.182:8001/jira/epic/suggest";
         
@@ -1761,6 +1781,79 @@ public class JiraService {
             }
             
             return gson.fromJson(responseBody, AIRecommendationResponse.class);
+        }
+    }
+
+    public String generateDescription(String aiRequest) throws IOException {
+        String url = "http://172.16.120.182:8001/jira/description/generate";
+        
+        // Create request body with AI request
+        JsonObject requestJson = new JsonObject();
+        requestJson.addProperty("request", aiRequest);
+        
+        RequestBody body = RequestBody.create(
+            gson.toJson(requestJson),
+            MediaType.parse("application/json")
+        );
+        logRequest("POST", url, gson.toJson(requestJson));
+        
+        Request httpRequest = new Request.Builder()
+            .url(url)
+            .post(body)
+            .addHeader("Content-Type", "application/json")
+            .build();
+        
+        try (Response response = client.newCall(httpRequest).execute()) {
+            String responseBody = response.body() != null ? response.body().string() : "";
+            if (!response.isSuccessful()) {
+                throw new IOException("Failed to generate description: " + response.code() + " - " + responseBody);
+            }
+            
+            // Parse response and extract description
+            JsonObject responseJson = gson.fromJson(responseBody, JsonObject.class);
+            if (responseJson.has("description")) {
+                return responseJson.get("description").getAsString();
+            } else if (responseJson.has("result")) {
+                return responseJson.get("result").getAsString();
+            } else {
+                throw new IOException("Invalid response format: missing 'description' or 'result' field");
+            }
+        }
+    }
+
+    public String generateWorkDescription(String summary) throws IOException {
+        String url = "http://172.16.120.182:8001/jira/issues/generate_description";
+        
+        // Create request body with actionType and summary
+        JsonObject requestJson = new JsonObject();
+        requestJson.addProperty("actionType", "task_create");
+        requestJson.addProperty("summary", summary);
+        
+        RequestBody body = RequestBody.create(
+            gson.toJson(requestJson),
+            MediaType.parse("application/json")
+        );
+        logRequest("POST", url, gson.toJson(requestJson));
+        
+        Request httpRequest = new Request.Builder()
+            .url(url)
+            .post(body)
+            .addHeader("Content-Type", "application/json")
+            .build();
+        
+        try (Response response = client.newCall(httpRequest).execute()) {
+            String responseBody = response.body() != null ? response.body().string() : "";
+            if (!response.isSuccessful()) {
+                throw new IOException("Failed to generate work description: " + response.code() + " - " + responseBody);
+            }
+            
+            // Parse response and extract ai_result
+            JsonObject responseJson = gson.fromJson(responseBody, JsonObject.class);
+            if (responseJson.has("ai_result")) {
+                return responseJson.get("ai_result").getAsString();
+            } else {
+                throw new IOException("Invalid response format: missing 'ai_result' field");
+            }
         }
     }
 }

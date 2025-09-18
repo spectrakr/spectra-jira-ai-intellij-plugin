@@ -19,6 +19,7 @@ public class JiraIssue {
     private String parentSummary;
     private String epicColor;
     private String priorityIconUrl;
+    private String assigneeAvatarUrl;
 
     public JiraIssue() {}
 
@@ -170,6 +171,14 @@ public class JiraIssue {
 
     public void setPriorityIconUrl(String priorityIconUrl) {
         this.priorityIconUrl = priorityIconUrl;
+    }
+
+    public String getAssigneeAvatarUrl() {
+        return assigneeAvatarUrl;
+    }
+
+    public void setAssigneeAvatarUrl(String assigneeAvatarUrl) {
+        this.assigneeAvatarUrl = assigneeAvatarUrl;
     }
 
     @Override

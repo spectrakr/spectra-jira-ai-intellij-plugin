@@ -32,7 +32,7 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <!-- Tool Window -->
-        <toolWindow id="Spectra Jira" secondary="true" icon="/icons/spectra-jira_13x13.svg" anchor="bottom"
+        <toolWindow id="Spectra Jira" secondary="true" icon="/icons/jira-icon.svg" anchor="bottom"
                     factoryClass="com.spectra.intellij.ai.toolwindow.JiraToolWindowFactory"
                     canCloseContents="false" doNotActivateOnStart="false"/>
 
