@@ -8,6 +8,8 @@ import com.spectra.intellij.ai.model.JiraSprint;
 import com.spectra.intellij.ai.model.JiraEpic;
 import com.spectra.intellij.ai.model.AIRecommendationRequest;
 import com.spectra.intellij.ai.model.AIRecommendationResponse;
+import com.spectra.intellij.ai.model.AccessLogRequest;
+import com.spectra.intellij.ai.model.SimpleUserInfo;
 import okhttp3.*;
 import org.apache.commons.lang3.StringUtils;
 
@@ -15,6 +17,9 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.Base64;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 public class JiraService {
     private static final String JIRA_API_VERSION = "2";
@@ -182,6 +187,7 @@ public class JiraService {
     public List<String> getProjectBoardIds() throws IOException {
         String url = baseUrl + "rest/agile/" + AGILE_API_VERSION + "/board?projectKeyOrId=" + getProjectKey();
         logRequest("GET", url);
+        sendAccessLog("스프린트 목록 조회", url);
         Request request = buildRequest(url);
         
         try (Response response = client.newCall(request).execute()) {
@@ -324,6 +330,10 @@ public class JiraService {
     public List<JiraIssue> getSprintIssues(String sprintId) throws IOException {
         String url = baseUrl + "rest/agile/" + AGILE_API_VERSION + "/sprint/" + sprintId + "/issue?maxResults=500&expand=renderedFields";
         logRequest("GET", url);
+        
+        // Send access log asynchronously
+        sendAccessLog("이슈 조회", url);
+        
         Request request = buildRequest(url);
         
         try (Response response = client.newCall(request).execute()) {
@@ -422,6 +432,7 @@ public class JiraService {
         );
 
         logRequest("POST", url, gson.toJson(issuePayload));
+        sendAccessLog("이슈 생성", url);
         
         Request request = buildRequest(url).newBuilder()
             .post(body)
@@ -867,62 +878,6 @@ public class JiraService {
         }
     }
 
-    public List<JiraIssue> getProjectIssues(String projectKey) throws IOException {
-        String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/search";
-        
-        // JQL to get issues from specific project
-        String jql = "project = \"" + projectKey + "\" ORDER BY updated DESC";
-        
-        JsonObject requestBody = new JsonObject();
-        requestBody.addProperty("jql", jql);
-        requestBody.addProperty("maxResults", 500); // Limit to 50 issues
-        requestBody.addProperty("startAt", 0);
-        
-        // Specify fields to retrieve
-        JsonArray fields = new JsonArray();
-        fields.add("key");
-        fields.add("summary");
-        fields.add("description");
-        fields.add("status");
-        fields.add("assignee");
-        fields.add("creator");
-        fields.add("priority");
-        fields.add("issuetype");
-        fields.add("updated");
-        fields.add(getStoryPointsField()); // Story Points
-        requestBody.add("fields", fields);
-        
-        RequestBody body = RequestBody.create(
-            gson.toJson(requestBody),
-            MediaType.parse("application/json")
-        );
-        
-        logRequest("POST", url, gson.toJson(requestBody));
-        
-        Request request = buildRequest(url).newBuilder()
-            .post(body)
-            .build();
-        
-        try (Response response = client.newCall(request).execute()) {
-            if (!response.isSuccessful()) {
-                throw new IOException("Failed to get project issues: " + response.code());
-            }
-            
-            String responseBody = response.body() != null ? response.body().string() : "{}";
-            JsonObject responseJson = gson.fromJson(responseBody, JsonObject.class);
-            JsonArray issuesArray = responseJson.getAsJsonArray("issues");
-            
-            List<JiraIssue> issues = new ArrayList<>();
-            for (int i = 0; i < issuesArray.size(); i++) {
-                JsonObject issueJson = issuesArray.get(i).getAsJsonObject();
-                JiraIssue issue = parseIssueForList(issueJson);
-                issues.add(issue);
-            }
-            
-            return issues;
-        }
-    }
-
     public CompletableFuture<Void> updateIssueAsync(JiraIssue issue) {
         return CompletableFuture.runAsync(() -> {
             try {
@@ -1013,6 +968,7 @@ public class JiraService {
         );
 
         logRequest("PUT", url, gson.toJson(updatePayload));
+        sendAccessLog("이슈 수정", url);
 
         Request request = buildRequest(url).newBuilder()
             .put(body)
@@ -1091,6 +1047,11 @@ public class JiraService {
     public JiraIssue getIssue(String issueKey) throws IOException {
         String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/issue/" + issueKey + "?expand=names,schema,renderedFields";
         logRequest("GET", url);
+        sendAccessLog("이슈 조회", url);
+        
+        // Send access log asynchronously
+        sendAccessLog("이슈 조회", url);
+        
         Request request = buildRequest(url);
         
         try (Response response = client.newCall(request).execute()) {
@@ -1325,6 +1286,7 @@ public class JiraService {
         // First get available transitions
         String transitionsUrl = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/issue/" + issueKey + "/transitions";
         logRequest("GET", transitionsUrl);
+
         Request transitionsRequest = buildRequest(transitionsUrl);
         
         try (Response transitionsResponse = client.newCall(transitionsRequest).execute()) {
@@ -1360,6 +1322,7 @@ public class JiraService {
                 );
                 
                 logRequest("POST", transitionsUrl, gson.toJson(transitionPayload));
+                sendAccessLog("이슈 상태 변경", transitionsUrl);
                 
                 Request transitionRequest = buildRequest(transitionsUrl).newBuilder()
                     .post(body)
@@ -1401,6 +1364,7 @@ public class JiraService {
         );
 
         logRequest("PUT", url, gson.toJson(updatePayload));
+        sendAccessLog("이슈 summary 수정", url);
 
         Request request = buildRequest(url).newBuilder()
             .put(body)
@@ -1448,6 +1412,7 @@ public class JiraService {
         );
 
         logRequest("PUT", url, gson.toJson(updatePayload));
+        sendAccessLog("이슈 description 수정", url);
 
         Request request = buildRequest(url).newBuilder()
             .put(body)
@@ -1494,6 +1459,7 @@ public class JiraService {
         );
 
         logRequest("PUT", url, gson.toJson(updatePayload));
+        sendAccessLog("이슈 story point 수정", url);
 
         Request request = buildRequest(url).newBuilder()
             .put(body)
@@ -1561,6 +1527,7 @@ public class JiraService {
         );
 
         logRequest("PUT", url, gson.toJson(updatePayload));
+        sendAccessLog("이슈 assignee 수정", url);
 
         Request request = buildRequest(url).newBuilder()
             .put(body)
@@ -1603,6 +1570,7 @@ public class JiraService {
         );
 
         logRequest("PUT", url, gson.toJson(updatePayload));
+        sendAccessLog("이슈 parent 수정", url);
 
         Request request = buildRequest(url).newBuilder()
             .put(body)
@@ -1766,6 +1734,7 @@ public class JiraService {
         );
 
         logRequest("POST", url, gson.toJson(request));
+        sendAccessLog("이슈 epic 추천", url);
         
         Request httpRequest = new Request.Builder()
             .url(url)
@@ -1796,6 +1765,7 @@ public class JiraService {
             MediaType.parse("application/json")
         );
         logRequest("POST", url, gson.toJson(requestJson));
+        sendAccessLog("AI 내용 생성", url);
         
         Request httpRequest = new Request.Builder()
             .url(url)
@@ -1834,6 +1804,7 @@ public class JiraService {
             MediaType.parse("application/json")
         );
         logRequest("POST", url, gson.toJson(requestJson));
+        sendAccessLog("AI 작업 내용 생성", url);
         
         Request httpRequest = new Request.Builder()
             .url(url)
@@ -1855,5 +1826,53 @@ public class JiraService {
                 throw new IOException("Invalid response format: missing 'ai_result' field");
             }
         }
+    }
+
+    private String encodeUserInfo(SimpleUserInfo userInfo) {
+        try {
+            String userInfoJson = gson.toJson(userInfo);
+            String encodedUserInfo = URLEncoder.encode(userInfoJson, StandardCharsets.UTF_8);
+            return Base64.getEncoder().encodeToString(encodedUserInfo.getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            System.err.println("Failed to encode user info: " + e.getMessage());
+            return "";
+        }
+    }
+
+    private CompletableFuture<Void> sendAccessLog(String title, String url) {
+        return CompletableFuture.runAsync(() -> {
+            try {
+                // Get current user information
+                JsonObject currentUser = getCurrentUser();
+                String emailAddress = currentUser.has("emailAddress") ? currentUser.get("emailAddress").getAsString() : "";
+                String displayName = currentUser.has("displayName") ? currentUser.get("displayName").getAsString() : "";
+                
+                SimpleUserInfo userInfo = new SimpleUserInfo(emailAddress, displayName);
+                String encodedUserInfo = encodeUserInfo(userInfo);
+                
+                AccessLogRequest accessLog = new AccessLogRequest("intellij", title, url, encodedUserInfo);
+                
+                String accessLogUrl = "http://172.16.120.182:8001/accesslog";
+                
+                RequestBody body = RequestBody.create(
+                    gson.toJson(accessLog),
+                    MediaType.parse("application/json")
+                );
+                
+                Request request = new Request.Builder()
+                    .url(accessLogUrl)
+                    .post(body)
+                    .addHeader("Content-Type", "application/json")
+                    .build();
+                
+                try (Response response = client.newCall(request).execute()) {
+                    if (!response.isSuccessful()) {
+                        System.err.println("Failed to send access log: " + response.code());
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Error sending access log: " + e.getMessage());
+            }
+        });
     }
 }
