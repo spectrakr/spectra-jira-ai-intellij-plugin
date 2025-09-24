@@ -16,8 +16,8 @@ public final class JiraSettings implements PersistentStateComponent<JiraSettings
     public String jiraUrl = "https://enomix.atlassian.net/";
     public String username = "kmhan@spectra.co.kr";
     public String apiToken = "";
-    public String defaultBoardId = "667";
-    public String defaultProjectKey = "AVGRS";
+    public String defaultBoardId = "";
+    public String defaultProjectKey = "";
     
     public static JiraSettings getInstance() {
         return ApplicationManager.getApplication().getService(JiraSettings.class);

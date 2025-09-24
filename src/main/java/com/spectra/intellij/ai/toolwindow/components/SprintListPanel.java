@@ -25,10 +25,12 @@ public class SprintListPanel extends JPanel {
     private JList<JiraSprint> sprintList;
     private DefaultListModel<JiraSprint> sprintListModel;
     private JButton settingsButton;
+    private JButton refreshButton;
     private JButton checkVersionButton;
     
     private Consumer<JiraSprint> onSprintSelected;
     private Consumer<Void> onSettingsClick;
+    private Consumer<Void> onRefreshClick;
     
     public SprintListPanel(Project project) {
         this.project = project;
@@ -55,11 +57,30 @@ public class SprintListPanel extends JPanel {
         // Icon buttons on the right
         JPanel iconButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
         
-        // Settings button with icon
-        settingsButton = new JButton();
+        // Refresh button with icon
+        refreshButton = new JButton();
         // Use theme-aware icon loading
         Color textColor = UIUtil.getLabelForeground();
         boolean isDark = textColor.getRed() > 127; // Light text indicates dark theme
+        if (isDark) {
+            refreshButton.setIcon(IconLoader.getIcon("/icons/refresh_dark.svg", getClass()));
+        } else {
+            refreshButton.setIcon(IconLoader.getIcon("/icons/refresh.svg", getClass()));
+        }
+        refreshButton.setToolTipText("Refresh Sprint List");
+        refreshButton.setPreferredSize(new Dimension(24, 24));
+        refreshButton.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+        refreshButton.setContentAreaFilled(false);
+        refreshButton.setFocusPainted(false);
+        refreshButton.addActionListener(e -> {
+            if (onRefreshClick != null) {
+                onRefreshClick.accept(null);
+            }
+        });
+        
+        // Settings button with icon
+        settingsButton = new JButton();
+        // Use theme-aware icon loading for settings button
         if (isDark) {
             settingsButton.setIcon(IconLoader.getIcon("/icons/settings_dark.svg", getClass()));
         } else {
@@ -77,6 +98,7 @@ public class SprintListPanel extends JPanel {
         });
 
 
+        iconButtonPanel.add(refreshButton);
         iconButtonPanel.add(settingsButton);
         headerPanel.add(iconButtonPanel, BorderLayout.EAST);
         
@@ -136,6 +158,10 @@ public class SprintListPanel extends JPanel {
     
     public void setOnSettingsClick(Consumer<Void> onSettingsClick) {
         this.onSettingsClick = onSettingsClick;
+    }
+    
+    public void setOnRefreshClick(Consumer<Void> onRefreshClick) {
+        this.onRefreshClick = onRefreshClick;
     }
     
     private void showVersionInfo() {

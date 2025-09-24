@@ -199,6 +199,7 @@ public class JiraToolWindowContent {
         // Sprint selection
         sprintListPanel.setOnSprintSelected(this::onSprintSelected);
         sprintListPanel.setOnSettingsClick(v -> showSettingsDialog());
+        sprintListPanel.setOnRefreshClick(v -> loadSprints());
         
         // Filter events
         filterPanel.setOnFilterChanged(v -> applyFilters());
