@@ -353,7 +353,7 @@ public class JiraToolWindowContent {
                 updateStatus("Connected to: " + settings.getJiraUrl());
                 filterPanel.setCreateIssueButtonEnabled(true);
             } else {
-                updateStatus("Not configured - Configure in Settings");
+                updateStatus("Jira 사용자 계정 설정이 필요합니다. 스프린트 목록 우측에 [설정] 버튼을 클릭하여 정보를 입력하세요.");
                 filterPanel.setCreateIssueButtonEnabled(false);
                 clearIssueDetail();
             }
@@ -368,7 +368,8 @@ public class JiraToolWindowContent {
         JiraSettings settings = JiraSettings.getInstance();
         return settings.getJiraUrl() != null && !settings.getJiraUrl().trim().isEmpty() &&
                settings.getUsername() != null && !settings.getUsername().trim().isEmpty() &&
-               settings.getApiToken() != null && !settings.getApiToken().trim().isEmpty();
+               settings.getApiToken() != null && !settings.getApiToken().trim().isEmpty() &&
+               settings.getDefaultProjectKey() != null && !settings.getDefaultProjectKey().trim().isEmpty();
     }
     
     private void showConfigurationError() {
