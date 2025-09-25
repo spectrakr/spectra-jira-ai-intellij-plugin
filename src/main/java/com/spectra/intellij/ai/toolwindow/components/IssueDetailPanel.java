@@ -7,6 +7,8 @@ import com.spectra.intellij.ai.toolwindow.handlers.InlineEditHandler;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionListener;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.util.function.Consumer;
 
 public class IssueDetailPanel extends JPanel {
@@ -33,6 +35,7 @@ public class IssueDetailPanel extends JPanel {
     public IssueDetailPanel(Project project) {
         this.project = project;
         initializeComponents();
+        setupResizeListener();
     }
     
     private void initializeComponents() {
@@ -78,15 +81,17 @@ public class IssueDetailPanel extends JPanel {
         gbc.gridx = 0; gbc.gridy = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0; gbc.gridwidth = 2;
         issueSummaryField = new JTextField();
         issueSummaryField.setFont(issueSummaryField.getFont().deriveFont(Font.BOLD, 12f));
+        // Initial size will be set by GridBagConstraints HORIZONTAL fill
         formPanel.add(issueSummaryField, gbc);
         
         // Status (no label) - with inline edit capability
-        gbc.gridx = 0; gbc.gridy = 2; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0; gbc.gridwidth = 2; gbc.anchor = GridBagConstraints.WEST;
         issueStatusComboBox = new JComboBox<>();
+        issueStatusComboBox.setPreferredSize(new Dimension(200, issueStatusComboBox.getPreferredSize().height));
         formPanel.add(issueStatusComboBox, gbc);
         
         // Description (no label) - with inline edit capability
-        gbc.gridx = 0; gbc.gridy = 3; gbc.fill = GridBagConstraints.BOTH; gbc.weightx = 1.0; gbc.weighty = 0.3; gbc.gridwidth = 2;
+        gbc.gridx = 0; gbc.gridy = 3; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0; gbc.weighty = 0; gbc.gridwidth = 2;
         
         // Create description panel container
         JPanel descriptionPanel = new JPanel(new BorderLayout());
@@ -94,16 +99,17 @@ public class IssueDetailPanel extends JPanel {
         issueDescriptionField = new JTextArea();
         issueDescriptionField.setLineWrap(true);
         issueDescriptionField.setWrapStyleWord(true);
-        issueDescriptionField.setRows(4);
+        issueDescriptionField.setRows(3); // Reduce rows to prevent overflow
         descriptionScrollPane = new JScrollPane(issueDescriptionField);
         descriptionScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         descriptionScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        descriptionScrollPane.setPreferredSize(new Dimension(350, 90)); // Set initial size with reduced height\n        descriptionScrollPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, 90)); // Limit maximum height
         descriptionPanel.add(descriptionScrollPane, BorderLayout.CENTER);
         
         // Create button panel for description editing (initially hidden)
         descriptionButtonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 5));
-        saveDescriptionButton = new JButton("Save");
-        cancelDescriptionButton = new JButton("Cancel");
+        saveDescriptionButton = new JButton("저장");
+        cancelDescriptionButton = new JButton("취소");
         
         descriptionButtonPanel.add(saveDescriptionButton);
         descriptionButtonPanel.add(cancelDescriptionButton);
@@ -154,9 +160,10 @@ public class IssueDetailPanel extends JPanel {
         // Story Points
         detailGbc.gridx = 0; detailGbc.gridy = 3; detailGbc.fill = GridBagConstraints.NONE; detailGbc.weightx = 0;
         detailsPanel.add(new JLabel("Story Points:"), detailGbc);
-        detailGbc.gridx = 1; detailGbc.fill = GridBagConstraints.HORIZONTAL; detailGbc.weightx = 1.0;
+        detailGbc.gridx = 1; detailGbc.fill = GridBagConstraints.NONE; detailGbc.weightx = 0; detailGbc.anchor = GridBagConstraints.WEST;
         storyPointsField = new JTextField();
-        storyPointsField.setPreferredSize(new Dimension(100, storyPointsField.getPreferredSize().height));
+        storyPointsField.setPreferredSize(new Dimension(60, storyPointsField.getPreferredSize().height));
+        storyPointsField.setMaximumSize(new Dimension(60, storyPointsField.getPreferredSize().height));
         detailsPanel.add(storyPointsField, detailGbc);
         
         formPanel.add(detailsPanel, gbc);
@@ -165,6 +172,55 @@ public class IssueDetailPanel extends JPanel {
         
         // Initially show "Select an issue" message
         clearIssueDetail();
+    }
+    
+    private void setupResizeListener() {
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                adjustComponentSizes();
+            }
+        });
+    }
+    
+    private void adjustComponentSizes() {
+        SwingUtilities.invokeLater(() -> {
+            int panelWidth = getWidth();
+
+            if (panelWidth > 0) {
+                // Calculate available width for components (considering margins and padding)
+                int availableWidth = panelWidth - 40; // Account for margins and padding
+
+                // Limit maximum width to prevent too wide fields
+                int fieldWidth = Math.min(availableWidth, 200);
+                int comboWidth = Math.min(availableWidth, 200);
+
+                // Adjust text fields
+                if (issueKeyField != null) {
+                    issueKeyField.setPreferredSize(new Dimension(fieldWidth, issueKeyField.getPreferredSize().height));
+                }
+                if (issueSummaryField != null) {
+                    issueSummaryField.setPreferredSize(new Dimension(availableWidth, issueSummaryField.getPreferredSize().height));
+                }
+                if (issueStatusComboBox != null) {
+                    issueStatusComboBox.setPreferredSize(new Dimension(comboWidth, issueStatusComboBox.getPreferredSize().height));
+                }
+                if (storyPointsField != null) {
+                    storyPointsField.setPreferredSize(new Dimension(60, storyPointsField.getPreferredSize().height));
+                }
+                
+                // Adjust description area to fit available width
+                if (descriptionScrollPane != null && issueDescriptionField != null) {
+                    int descriptionWidth = Math.max(300, availableWidth);
+                    descriptionScrollPane.setPreferredSize(new Dimension(descriptionWidth, 90)); // Fixed height to prevent overflow\n                    descriptionScrollPane.setMaximumSize(new Dimension(descriptionWidth, 90)); // Enforce maximum height
+                    issueDescriptionField.setColumns((descriptionWidth - 20) / 8); // Approximate character width
+                }
+                
+                // Force revalidate and repaint
+                revalidate();
+                repaint();
+            }
+        });
     }
     
     public void populateIssueForm(JiraIssue issue) {
@@ -281,5 +337,10 @@ public class IssueDetailPanel extends JPanel {
     
     public void setOnEpicLabelClick(Consumer<Void> onEpicLabelClick) {
         this.onEpicLabelClick = onEpicLabelClick;
+    }
+    
+    // Public method to trigger resize adjustment
+    public void triggerResizeAdjustment() {
+        adjustComponentSizes();
     }
 }

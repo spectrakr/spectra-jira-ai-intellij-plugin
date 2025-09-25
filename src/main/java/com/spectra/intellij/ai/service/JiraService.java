@@ -117,7 +117,17 @@ public class JiraService {
     public CompletableFuture<List<JiraIssue>> getEpicsAsync(String boardId) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                return getEpics(boardId);
+                // Use getEpicList() instead of getEpics(boardId) to avoid deprecated API
+                List<JiraEpic> epicList = getEpicList();
+                List<JiraIssue> epics = new ArrayList<>();
+                for (JiraEpic epic : epicList) {
+                    JiraIssue issue = new JiraIssue();
+                    issue.setKey(epic.getKey());
+                    issue.setSummary(epic.getSummary());
+                    issue.setIssueType("Epic");
+                    epics.add(issue);
+                }
+                return epics;
             } catch (IOException e) {
                 throw new RuntimeException("Failed to fetch epics", e);
             }
@@ -267,7 +277,7 @@ public class JiraService {
 
     public List<JiraEpic> getEpicList() throws IOException {
         String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/search/jql";
-        
+
         // JQL to get Epics from project
         String jql = "project = " + getProjectKey() + " AND issuetype = Epic ORDER BY updated DESC";
         
@@ -330,9 +340,6 @@ public class JiraService {
     public List<JiraIssue> getSprintIssues(String sprintId) throws IOException {
         String url = baseUrl + "rest/agile/" + AGILE_API_VERSION + "/sprint/" + sprintId + "/issue?maxResults=500&expand=renderedFields";
         logRequest("GET", url);
-        
-        // Send access log asynchronously
-        sendAccessLog("이슈 조회", url);
         
         Request request = buildRequest(url);
         
@@ -1047,11 +1054,7 @@ public class JiraService {
     public JiraIssue getIssue(String issueKey) throws IOException {
         String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/issue/" + issueKey + "?expand=names,schema,renderedFields";
         logRequest("GET", url);
-        sendAccessLog("이슈 조회", url);
-        
-        // Send access log asynchronously
-        sendAccessLog("이슈 조회", url);
-        
+
         Request request = buildRequest(url);
         
         try (Response response = client.newCall(request).execute()) {

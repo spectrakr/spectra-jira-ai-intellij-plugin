@@ -15,6 +15,10 @@ import com.spectra.intellij.ai.toolwindow.handlers.*;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.Desktop;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.net.URI;
 import java.util.function.Consumer;
 import com.spectra.intellij.ai.service.JiraService;
@@ -108,11 +112,36 @@ public class JiraToolWindowContent {
         detailScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         detailScrollPane.setBorder(JBUI.Borders.customLine(JBUI.CurrentTheme.CustomFrameDecorations.separatorForeground(), 1));
         
+        // Add component listener to handle manual resizing
+        detailScrollPane.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                SwingUtilities.invokeLater(() -> {
+                    if (issueDetailPanel != null) {
+                        issueDetailPanel.triggerResizeAdjustment();
+                    }
+                });
+            }
+        });
+        
         // Create resizable split pane for issue list and detail
         JSplitPane issueDetailSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, issuePanel, detailScrollPane);
         issueDetailSplitPane.setResizeWeight(0.7); // 70% for issue list, 30% for detail
         issueDetailSplitPane.setDividerLocation(0.7);
         issueDetailSplitPane.setContinuousLayout(true);
+        
+        // Add property change listener to handle split pane resize
+        issueDetailSplitPane.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, new PropertyChangeListener() {
+            @Override
+            public void propertyChange(PropertyChangeEvent evt) {
+                // Trigger resize adjustment on the detail panel
+                SwingUtilities.invokeLater(() -> {
+                    if (issueDetailPanel != null) {
+                        issueDetailPanel.triggerResizeAdjustment();
+                    }
+                });
+            }
+        });
         
         // Remove divider visibility
         issueDetailSplitPane.setBackground(UIManager.getColor("Panel.background"));

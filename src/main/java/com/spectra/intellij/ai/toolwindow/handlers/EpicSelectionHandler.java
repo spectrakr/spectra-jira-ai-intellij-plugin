@@ -25,6 +25,7 @@ public class EpicSelectionHandler {
     private final JiraService jiraService;
     private JiraIssue currentIssue;
     private Consumer<String> onStatusUpdate;
+    private String currentBoardId;
     
     public EpicSelectionHandler(Project project, JLabel epicLabel, JiraService jiraService) {
         this.project = project;
@@ -86,6 +87,10 @@ public class EpicSelectionHandler {
         updateEpicLabelDisplay();
     }
     
+    public void setCurrentBoardId(String boardId) {
+        this.currentBoardId = boardId;
+    }
+    
     private void showEpicSelectionPopup() {
         updateStatus("Loading epics...");
         
@@ -112,11 +117,12 @@ public class EpicSelectionHandler {
     }
     
     private String getCurrentBoardId() {
-        // Try to get boardId from the currently selected sprint via the tool window content
-        // This is a simple approach - in a more robust implementation, we might want to 
-        // track the current sprint selection more explicitly
+        // First try to use the explicitly set boardId
+        if (currentBoardId != null && !currentBoardId.trim().isEmpty()) {
+            return currentBoardId;
+        }
         
-        // For now, use fallback to the default boardId from settings if available
+        // Fallback to settings
         JiraSettings settings = JiraSettings.getInstance();
         String boardId = settings.getDefaultBoardId();
         

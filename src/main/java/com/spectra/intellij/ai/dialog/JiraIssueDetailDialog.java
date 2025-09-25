@@ -51,6 +51,9 @@ public class JiraIssueDetailDialog extends DialogWrapper {
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.anchor = GridBagConstraints.WEST;
         
+        // Set preferred width for the entire dialog
+        panel.setPreferredSize(new Dimension(600, 400));
+        
         // Issue Key (read-only)
         gbc.gridx = 0; gbc.gridy = 0;
         panel.add(new JLabel("Issue Key:"), gbc);
@@ -58,6 +61,8 @@ public class JiraIssueDetailDialog extends DialogWrapper {
         JTextField keyField = new JTextField(issue.getKey());
         keyField.setEditable(false);
         keyField.setBackground(panel.getBackground());
+        keyField.setPreferredSize(new Dimension(450, keyField.getPreferredSize().height));
+        keyField.setMaximumSize(new Dimension(450, keyField.getPreferredSize().height));
         panel.add(keyField, gbc);
         
         // Summary
@@ -70,18 +75,20 @@ public class JiraIssueDetailDialog extends DialogWrapper {
         // Issue Status
         gbc.gridx = 0; gbc.gridy = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
         panel.add(new JLabel("Status:"), gbc);
-        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
+        gbc.gridx = 1; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
         statusComboBox = new JComboBox<>();
+        statusComboBox.setPreferredSize(new Dimension(200, statusComboBox.getPreferredSize().height));
         panel.add(statusComboBox, gbc);
         
         // Assignee
         gbc.gridx = 0; gbc.gridy = 3; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
         gbc.anchor = GridBagConstraints.WEST;
         panel.add(new JLabel("Assignee:"), gbc);
-        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
+        gbc.gridx = 1; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
         
         // Create assignee selection panel
         JPanel assigneePanel = createAssigneeSelectionPanel();
+        assigneePanel.setPreferredSize(new Dimension(350, assigneePanel.getPreferredSize().height));
         panel.add(assigneePanel, gbc);
         
         // Description
@@ -545,11 +552,17 @@ public class JiraIssueDetailDialog extends DialogWrapper {
         @Override
         public Dimension getPreferredSize() {
             if (isEditing) {
-                return editField.getPreferredSize();
+                Dimension editSize = editField.getPreferredSize();
+                return new Dimension(Math.min(450, Math.max(200, editSize.width)), editSize.height);
             } else {
                 Dimension labelSize = displayLabel.getPreferredSize();
-                return new Dimension(Math.max(200, labelSize.width), Math.max(25, labelSize.height));
+                return new Dimension(Math.min(450, Math.max(200, labelSize.width)), Math.max(25, labelSize.height));
             }
+        }
+        
+        @Override
+        public Dimension getMaximumSize() {
+            return new Dimension(450, getPreferredSize().height);
         }
     }
     
@@ -732,16 +745,21 @@ public class JiraIssueDetailDialog extends DialogWrapper {
         @Override
         public Dimension getPreferredSize() {
             if (isEditing) {
-                return new Dimension(400, 150);
+                return new Dimension(450, 150);
             } else {
                 Dimension labelSize = displayLabel.getPreferredSize();
-                return new Dimension(Math.max(400, labelSize.width), Math.max(80, labelSize.height));
+                return new Dimension(Math.min(450, Math.max(300, labelSize.width)), Math.max(80, labelSize.height));
             }
         }
         
         @Override
         public Dimension getMinimumSize() {
             return new Dimension(300, 60);
+        }
+        
+        @Override
+        public Dimension getMaximumSize() {
+            return new Dimension(450, Integer.MAX_VALUE);
         }
     }
 }
