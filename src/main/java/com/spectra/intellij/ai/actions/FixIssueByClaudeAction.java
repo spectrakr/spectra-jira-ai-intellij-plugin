@@ -65,9 +65,17 @@ public class FixIssueByClaudeAction extends AnAction {
                             ApplicationManager.getApplication().executeOnPooledThread(() -> {
                                 try {
                                     // Create command line
+                                    String osName = System.getProperty("os.name").toLowerCase();
                                     GeneralCommandLine commandLine = new GeneralCommandLine();
-                                    commandLine.setExePath("sh");
-                                    commandLine.addParameter("-c");
+                                    if (osName.contains("win")) {
+                                        commandLine.setExePath("cmd");
+                                        commandLine.addParameter("/c");
+                                    } else {
+                                        commandLine.setExePath("/bin/sh");
+                                        commandLine.addParameter("-l");
+                                        commandLine.addParameter("-c");
+                                    }
+
                                     commandLine.addParameter(command);
                                     commandLine.setWorkDirectory(basePath);
 
