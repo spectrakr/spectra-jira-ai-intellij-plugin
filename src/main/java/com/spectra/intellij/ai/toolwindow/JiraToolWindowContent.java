@@ -747,31 +747,39 @@ public class JiraToolWindowContent {
         // Check if MCP is already connected
         boolean isMcpConnected = checkMcpConnection();
 
-        if (isMcpConnected) {
-            // Show disconnect button only
-            JButton disconnectMcpButton = new JButton("Claude 연결 해제");
-            disconnectMcpButton.addActionListener(e -> {
-                removeMcpConnection();
-                // Refresh the dialog after removal
-                SwingUtilities.getWindowAncestor(panel).dispose();
-                showSettingsDialog();
-            });
-            gbc.gridx = 1; gbc.gridy = 4;
-            gbc.fill = GridBagConstraints.NONE;
-            panel.add(disconnectMcpButton, gbc);
-        } else {
-            // Show connect button only
-            JButton connectMcpButton = new JButton("Claude 연결");
-            connectMcpButton.addActionListener(e -> {
-                setupClaudeMcp(urlField.getText().trim(), userField.getText().trim(), new String(tokenField.getPassword()).trim());
-                // Refresh the dialog after setup
-                SwingUtilities.getWindowAncestor(panel).dispose();
-                showSettingsDialog();
-            });
-            gbc.gridx = 1; gbc.gridy = 4;
-            gbc.fill = GridBagConstraints.NONE;
-            panel.add(connectMcpButton, gbc);
-        }
+        // Create button panel that will be updated
+        JPanel mcpButtonContainer = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+
+        JButton mcpButton = new JButton(isMcpConnected ? "Claude 연결 해제" : "Claude 연결");
+        mcpButton.addActionListener(e -> {
+            boolean isConnected = checkMcpConnection();
+            if (isConnected) {
+                // Disconnect
+                removeMcpConnection(() -> {
+                    // Update button after removal
+                    SwingUtilities.invokeLater(() -> {
+                        mcpButton.setText("Claude 연결");
+                        mcpButtonContainer.revalidate();
+                        mcpButtonContainer.repaint();
+                    });
+                });
+            } else {
+                // Connect
+                setupClaudeMcp(urlField.getText().trim(), userField.getText().trim(), new String(tokenField.getPassword()).trim(), () -> {
+                    // Update button after setup
+                    SwingUtilities.invokeLater(() -> {
+                        mcpButton.setText("Claude 연결 해제");
+                        mcpButtonContainer.revalidate();
+                        mcpButtonContainer.repaint();
+                    });
+                });
+            }
+        });
+
+        mcpButtonContainer.add(mcpButton);
+        gbc.gridx = 1; gbc.gridy = 4;
+        gbc.fill = GridBagConstraints.NONE;
+        panel.add(mcpButtonContainer, gbc);
 
         // Show dialog
         int result = JOptionPane.showConfirmDialog(
@@ -834,7 +842,7 @@ public class JiraToolWindowContent {
         }
     }
 
-    private void removeMcpConnection() {
+    private void removeMcpConnection(Runnable onComplete) {
         try {
             String basePath = project.getBasePath();
             if (basePath == null) {
@@ -860,12 +868,18 @@ public class JiraToolWindowContent {
                                 "Jira MCP 연결 해제가 완료되었습니다.",
                                 "Jira MCP 연결 해제"
                             );
+                            if (onComplete != null) {
+                                onComplete.run();
+                            }
                         } else {
                             Messages.showErrorDialog(
                                 project,
                                 "Jira MCP 연결 해제에 실패했습니다.",
                                 "오류"
                             );
+                            if (onComplete != null) {
+                                onComplete.run();
+                            }
                         }
                     });
                 } catch (InterruptedException e) {
@@ -875,6 +889,9 @@ public class JiraToolWindowContent {
                             "Jira MCP 연결 해제 중 오류가 발생했습니다: " + e.getMessage(),
                             "오류"
                         );
+                        if (onComplete != null) {
+                            onComplete.run();
+                        }
                     });
                 }
             });
@@ -884,10 +901,13 @@ public class JiraToolWindowContent {
                 "Jira MCP 연결 해제 중 오류가 발생했습니다:\n" + ex.getMessage(),
                 "오류"
             );
+            if (onComplete != null) {
+                onComplete.run();
+            }
         }
     }
 
-    private void setupClaudeMcp(String jiraUrl, String username, String apiToken) {
+    private void setupClaudeMcp(String jiraUrl, String username, String apiToken, Runnable onComplete) {
         // Validate settings
         if (jiraUrl.isEmpty() || username.isEmpty() || apiToken.isEmpty()) {
             Messages.showWarningDialog(
@@ -895,6 +915,9 @@ public class JiraToolWindowContent {
                 "Jira URL, Email, API Token을 모두 입력해주세요.",
                 "설정 확인"
             );
+            if (onComplete != null) {
+                onComplete.run();
+            }
             return;
         }
 
@@ -903,19 +926,16 @@ public class JiraToolWindowContent {
             ensureFixIssueCommandExists();
 
             // Check and setup MCP connection if needed
-            ensureMcpConnectionExists(jiraUrl, username, apiToken);
-
-            Messages.showInfoMessage(
-                project,
-                "Jira MCP 연결이 완료되었습니다.\n터미널을 확인하세요.",
-                "Jira MCP 연결"
-            );
+            ensureMcpConnectionExists(jiraUrl, username, apiToken, onComplete);
         } catch (Exception ex) {
             Messages.showErrorDialog(
                 project,
                 "Jira MCP 연결 중 오류가 발생했습니다:\n" + ex.getMessage(),
                 "오류"
             );
+            if (onComplete != null) {
+                onComplete.run();
+            }
         }
     }
 
@@ -985,7 +1005,7 @@ public class JiraToolWindowContent {
         return uvxPath;
     }
 
-    private void ensureMcpConnectionExists(String jiraUrl, String username, String apiToken) throws Exception {
+    private void ensureMcpConnectionExists(String jiraUrl, String username, String apiToken, Runnable onComplete) throws Exception {
         String basePath = project.getBasePath();
         if (basePath == null) {
             return;
@@ -1011,6 +1031,9 @@ public class JiraToolWindowContent {
         }
 
         if (!needsSetup) {
+            if (onComplete != null) {
+                onComplete.run();
+            }
             return;
         }
 
@@ -1036,7 +1059,6 @@ public class JiraToolWindowContent {
         if (!jiraUrl.endsWith("/")) {
             jiraUrl += "/";
         }
-        mcpTemplate = mcpTemplate.replace("https://enomix.atlassian.net/", jiraUrl);
 
         // Escape single quotes in JSON content for shell command
         String escapedMcpTemplate = mcpTemplate.replace("'", "'\"'\"'");
@@ -1059,12 +1081,24 @@ public class JiraToolWindowContent {
             try {
                 int exitCode = process.waitFor();
                 SwingUtilities.invokeLater(() -> {
-                    if (exitCode != 0) {
+                    if (exitCode == 0) {
+                        Messages.showInfoMessage(
+                            project,
+                            "Jira MCP 연결이 완료되었습니다.",
+                            "Jira MCP 연결"
+                        );
+                        if (onComplete != null) {
+                            onComplete.run();
+                        }
+                    } else {
                         Messages.showErrorDialog(
                             project,
                             "Jira MCP 연결에 실패했습니다.",
                             "오류"
                         );
+                        if (onComplete != null) {
+                            onComplete.run();
+                        }
                     }
                 });
             } catch (InterruptedException e) {
@@ -1074,6 +1108,9 @@ public class JiraToolWindowContent {
                         "Jira MCP 연결 중 오류가 발생했습니다: " + e.getMessage(),
                         "오류"
                     );
+                    if (onComplete != null) {
+                        onComplete.run();
+                    }
                 });
             }
         });
