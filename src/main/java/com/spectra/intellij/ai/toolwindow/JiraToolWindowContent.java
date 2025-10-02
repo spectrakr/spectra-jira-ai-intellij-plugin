@@ -987,7 +987,7 @@ public class JiraToolWindowContent {
         System.out.println("User Home: " + System.getProperty("user.home"));
 
         ProcessBuilder processBuilder = new ProcessBuilder(
-            osName.contains("win") ? new String[]{"cmd", "/c", command} : new String[]{"sh", "-c", command}
+            osName.contains("win") ? new String[]{"cmd", "/c", command} : new String[]{"/bin/sh", "-l", "-c", command}
         );
         processBuilder.redirectErrorStream(true);
 
