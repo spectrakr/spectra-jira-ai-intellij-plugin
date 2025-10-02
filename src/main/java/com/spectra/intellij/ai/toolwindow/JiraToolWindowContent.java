@@ -851,7 +851,12 @@ public class JiraToolWindowContent {
 
             // Execute command in background without showing terminal
             String command = "claude mcp remove atlassian-jira";
-            ProcessBuilder processBuilder = new ProcessBuilder("sh", "-c", command);
+//            ProcessBuilder processBuilder = new ProcessBuilder("sh", "-c", command);
+            String osName = System.getProperty("os.name").toLowerCase();
+            ProcessBuilder processBuilder = new ProcessBuilder(
+                    osName.contains("win") ? new String[]{"cmd", "/c", command} : new String[]{"/bin/sh", "-l", "-c", command}
+            );
+
             processBuilder.directory(new File(basePath));
             processBuilder.redirectErrorStream(true);
 
