@@ -1027,31 +1027,46 @@ public class JiraToolWindowContent {
     }
 
     private void ensureMcpConnectionExists(String jiraUrl, String username, String apiToken, Runnable onComplete) throws Exception {
+        System.out.println("=== MCP Connection Setup Debug ===");
+
         String basePath = project.getBasePath();
+        System.out.println("Project Base Path: " + basePath);
+
         if (basePath == null) {
+            System.err.println("ERROR: Project base path is null");
             return;
         }
 
         Path mcpJsonPath = Paths.get(basePath, ".mcp.json");
         File mcpJsonFile = mcpJsonPath.toFile();
+        System.out.println("MCP JSON Path: " + mcpJsonPath);
 
         // Check if .mcp.json exists and contains atlassian-jira
         boolean needsSetup = true;
         if (mcpJsonFile.exists()) {
+            System.out.println(".mcp.json exists, checking content...");
             String mcpContent = Files.readString(mcpJsonPath, StandardCharsets.UTF_8);
+            System.out.println(".mcp.json content: " + mcpContent);
+
             Gson gson = new Gson();
             JsonObject mcpJson = gson.fromJson(mcpContent, JsonObject.class);
 
             // Check if atlassian-jira exists in mcpServers
             if (mcpJson != null && mcpJson.has("mcpServers")) {
                 JsonObject mcpServers = mcpJson.getAsJsonObject("mcpServers");
+                System.out.println("mcpServers content: " + mcpServers.toString());
+
                 if (mcpServers.has("atlassian-jira")) {
+                    System.out.println("atlassian-jira already exists in .mcp.json, skipping setup");
                     needsSetup = false;
                 }
             }
+        } else {
+            System.out.println(".mcp.json does not exist, will create new connection");
         }
 
         if (!needsSetup) {
+            System.out.println("Setup not needed, completing...");
             if (onComplete != null) {
                 onComplete.run();
             }
@@ -1059,34 +1074,51 @@ public class JiraToolWindowContent {
         }
 
         // Get uvx path
+        System.out.println("Getting uvx path...");
         String uvxPath = getUvxPath();
+        System.out.println("UVX Path found: " + uvxPath);
 
         // Read mcp-add-json.txt template from resources
+        System.out.println("Reading MCP template from resources...");
         String mcpTemplate;
         try (InputStream templateStream = getClass().getResourceAsStream("/jira/mcp-add-json.txt")) {
             if (templateStream == null) {
+                System.err.println("ERROR: MCP template file not found in plugin resources");
                 throw new Exception("MCP template file not found in plugin resources");
             }
             mcpTemplate = new String(templateStream.readAllBytes(), StandardCharsets.UTF_8);
+            System.out.println("Template loaded, original content:\n" + mcpTemplate);
         }
 
         // Replace placeholders with actual values
+        System.out.println("Replacing template placeholders...");
+        System.out.println("  uvxPath: " + uvxPath);
+        System.out.println("  jiraUrl: " + jiraUrl);
+        System.out.println("  username: " + username);
+        System.out.println("  apiToken: " + (apiToken != null ? "***" + apiToken.substring(Math.max(0, apiToken.length() - 4)) : "null"));
+
         mcpTemplate = mcpTemplate.replace("<uvx_path>", uvxPath);
         mcpTemplate = mcpTemplate.replace("<jira_url>", jiraUrl);
         mcpTemplate = mcpTemplate.replace("<email>", username);
         mcpTemplate = mcpTemplate.replace("<access_token>", apiToken);
+        System.out.println("Template after replacement:\n" + mcpTemplate);
 
         // Ensure jiraUrl is properly formatted
         if (!jiraUrl.endsWith("/")) {
             jiraUrl += "/";
+            System.out.println("Added trailing slash to jiraUrl: " + jiraUrl);
         }
 
         // Escape single quotes in JSON content for shell command
         String escapedMcpTemplate = mcpTemplate.replace("'", "'\"'\"'");
+        System.out.println("Escaped template for shell:\n" + escapedMcpTemplate);
 
         String osName = System.getProperty("os.name").toLowerCase();
+        System.out.println("Operating System: " + osName);
+
         String command = String.format("claude mcp add-json atlassian-jira '%s' --scope project",
             escapedMcpTemplate);
+        System.out.println("Command to execute: " + command);
 
         // Execute command in background without showing terminal
         ProcessBuilder processBuilder = new ProcessBuilder(
@@ -1095,12 +1127,28 @@ public class JiraToolWindowContent {
         processBuilder.directory(new File(basePath));
         processBuilder.redirectErrorStream(true);
 
+        System.out.println("Starting process...");
         Process process = processBuilder.start();
 
         // Wait for completion in background thread
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             try {
+                // Capture command output for debugging
+                StringBuilder output = new StringBuilder();
+                try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(process.getInputStream()))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        output.append(line).append("\n");
+                        System.out.println("Process output: " + line);
+                    }
+                }
+
                 int exitCode = process.waitFor();
+                System.out.println("Process exit code: " + exitCode);
+                System.out.println("Process full output:\n" + output.toString());
+                System.out.println("=================================");
+
                 SwingUtilities.invokeLater(() -> {
                     if (exitCode == 0) {
                         Messages.showInfoMessage(
@@ -1112,9 +1160,13 @@ public class JiraToolWindowContent {
                             onComplete.run();
                         }
                     } else {
+                        String errorMsg = "Jira MCP 연결에 실패했습니다.\n\n" +
+                            "Exit Code: " + exitCode + "\n" +
+                            "Output:\n" + output.toString();
+                        System.err.println("ERROR: " + errorMsg);
                         Messages.showErrorDialog(
                             project,
-                            "Jira MCP 연결에 실패했습니다.",
+                            errorMsg,
                             "오류"
                         );
                         if (onComplete != null) {
@@ -1122,7 +1174,9 @@ public class JiraToolWindowContent {
                         }
                     }
                 });
-            } catch (InterruptedException e) {
+            } catch (Exception e) {
+                System.err.println("Exception during process execution: " + e.getMessage());
+                e.printStackTrace();
                 SwingUtilities.invokeLater(() -> {
                     Messages.showErrorDialog(
                         project,
