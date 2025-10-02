@@ -979,6 +979,13 @@ public class JiraToolWindowContent {
             command = "which uvx";
         }
 
+        // Log diagnostic information
+        System.out.println("=== UVX Path Detection Debug ===");
+        System.out.println("OS Name: " + osName);
+        System.out.println("Command: " + command);
+        System.out.println("PATH Environment: " + System.getenv("PATH"));
+        System.out.println("User Home: " + System.getProperty("user.home"));
+
         ProcessBuilder processBuilder = new ProcessBuilder(
             osName.contains("win") ? new String[]{"cmd", "/c", command} : new String[]{"sh", "-c", command}
         );
@@ -996,12 +1003,26 @@ public class JiraToolWindowContent {
         }
 
         int exitCode = process.waitFor();
+
+        // Log command results
+        System.out.println("Exit Code: " + exitCode);
+        System.out.println("Command Output: '" + output.toString() + "'");
+        System.out.println("Output Length: " + output.toString().trim().length());
+        System.out.println("================================");
+
         if (exitCode != 0 || output.toString().trim().isEmpty()) {
-            throw new Exception("uvx가 설치되어 있지 않습니다.\n\n다음 명령어로 설치해주세요:\npip install uv");
+            String errorMsg = "uvx가 설치되어 있지 않습니다.\n\n다음 명령어로 설치해주세요:\npip install uv\n\n" +
+                "Debug Info:\n" +
+                "- OS: " + osName + "\n" +
+                "- Exit Code: " + exitCode + "\n" +
+                "- Output: " + output.toString().trim() + "\n" +
+                "- PATH: " + System.getenv("PATH");
+            throw new Exception(errorMsg);
         }
 
         // Get first line (in case multiple paths are returned)
         String uvxPath = output.toString().trim().split("\n")[0].trim();
+        System.out.println("Found uvx at: " + uvxPath);
         return uvxPath;
     }
 

@@ -2,6 +2,7 @@ package com.spectra.intellij.ai.toolwindow.handlers;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.spectra.intellij.ai.model.JiraEpic;
 import com.spectra.intellij.ai.model.JiraIssue;
 import com.spectra.intellij.ai.service.JiraService;
 import com.spectra.intellij.ai.settings.JiraSettings;
@@ -96,24 +97,22 @@ public class EpicSelectionHandler {
         
         // Get board ID from currently selected sprint
         String boardId = getCurrentBoardId();
-        
+
         if (boardId == null) {
             updateStatus("No sprint selected or no board information available.");
             return;
         }
-        
-        // Get epics from the board using Agile API
-        jiraService.getEpicsAsync(boardId)
-            .thenAccept(epics -> SwingUtilities.invokeLater(() -> {
-                showEpicSearchDialog(epics);
-                updateStatus("Ready");
-            }))
-            .exceptionally(throwable -> {
-                SwingUtilities.invokeLater(() -> {
-                    updateStatus("Error loading epics: " + throwable.getMessage());
+
+        jiraService.getEpicListAsync()
+                .thenAccept(epics -> SwingUtilities.invokeLater(() -> {
+                    showEpicSearchPopup(epics);
+                }))
+                .exceptionally(throwable -> {
+                    SwingUtilities.invokeLater(() -> {
+                        Messages.showErrorDialog(project, "Failed to load epics: " + throwable.getMessage(), "Error");
+                    });
+                    return null;
                 });
-                return null;
-            });
     }
     
     private String getCurrentBoardId() {
@@ -134,7 +133,7 @@ public class EpicSelectionHandler {
         return null;
     }
     
-    private void showEpicSearchDialog(List<JiraIssue> allEpics) {
+    private void showEpicSearchPopup(List<JiraEpic> allEpics) {
         // Create dialog panel
         JPanel dialogPanel = new JPanel(new BorderLayout());
         dialogPanel.setPreferredSize(new Dimension(400, 200));
@@ -349,19 +348,19 @@ public class EpicSelectionHandler {
         SwingUtilities.invokeLater(() -> searchField.requestFocus());
     }
     
-    private void updateEpicList(DefaultListModel<String> listModel, List<JiraIssue> allEpics, String searchText) {
+    private void updateEpicList(DefaultListModel<String> listModel, List<JiraEpic> allEpics, String searchText) {
         listModel.clear();
-        
+
         // Add "None" option at the top
-        if (searchText.isEmpty() || "없음".toLowerCase().contains(searchText) || 
+        if (searchText.isEmpty() || "없음".toLowerCase().contains(searchText) ||
             "none".toLowerCase().contains(searchText)) {
             listModel.addElement("없음");
         }
-        
+
         // Add filtered epics
-        for (JiraIssue epic : allEpics) {
+        for (JiraEpic epic : allEpics) {
             String epicDisplay = epic.getKey() + " " + epic.getSummary();
-            if (searchText.isEmpty() || 
+            if (searchText.isEmpty() ||
                 epic.getKey().toLowerCase().contains(searchText) ||
                 epic.getSummary().toLowerCase().contains(searchText)) {
                 listModel.addElement(epicDisplay);
@@ -369,10 +368,10 @@ public class EpicSelectionHandler {
         }
     }
     
-    private void selectEpic(JList<String> epicList, List<JiraIssue> allEpics) {
+    private void selectEpic(JList<String> epicList, List<JiraEpic> allEpics) {
         String selectedEpic = epicList.getSelectedValue();
         if (selectedEpic == null) return;
-        
+
         // Close the popup
         Component comp = epicList;
         while (comp != null && !(comp instanceof JPopupMenu)) {
@@ -381,7 +380,7 @@ public class EpicSelectionHandler {
         if (comp instanceof JPopupMenu) {
             ((JPopupMenu) comp).setVisible(false);
         }
-        
+
         // Handle selection
         if (selectedEpic.equals("없음")) {
             // Remove parent/epic

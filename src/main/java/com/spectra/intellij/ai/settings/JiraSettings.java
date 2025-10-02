@@ -61,10 +61,6 @@ public final class JiraSettings implements PersistentStateComponent<JiraSettings
         return defaultBoardId;
     }
     
-    public void setDefaultBoardId(String defaultBoardId) {
-        this.defaultBoardId = defaultBoardId;
-    }
-    
     public String getDefaultProjectKey() {
         return defaultProjectKey;
     }
