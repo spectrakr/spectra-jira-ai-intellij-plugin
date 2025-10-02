@@ -32,6 +32,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.Map;
 import java.util.function.Consumer;
 
 public class JiraToolWindowContent {
@@ -1119,14 +1120,38 @@ public class JiraToolWindowContent {
         String osName = System.getProperty("os.name").toLowerCase();
         System.out.println("Operating System: " + osName);
 
-        String command = String.format("cd '%s' && claude mcp add-json atlassian-jira '%s' --scope project",
-            basePath, escapedMcpTemplate);
+        // Find claude CLI path
+        String claudePath = "claude";  // fallback to PATH lookup
+        try {
+            Process whichProcess = new ProcessBuilder("/bin/sh", "-c", "which claude").start();
+            java.io.BufferedReader whichReader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(whichProcess.getInputStream()));
+            String foundPath = whichReader.readLine();
+            if (foundPath != null && !foundPath.isEmpty()) {
+                claudePath = foundPath.trim();
+                System.out.println("Found claude at: " + claudePath);
+            }
+            whichProcess.waitFor();
+        } catch (Exception e) {
+            System.err.println("Could not find claude path: " + e.getMessage());
+        }
+
+        String command = String.format("cd '%s' && %s mcp add-json atlassian-jira '%s' --scope project",
+            basePath, claudePath, escapedMcpTemplate);
         System.out.println("Command to execute: " + command);
 
         // Execute command in background without showing terminal
         ProcessBuilder processBuilder = new ProcessBuilder(
             osName.contains("win") ? new String[]{"cmd", "/c", command} : new String[]{"/bin/sh", "-c", command}
         );
+
+        // Inherit PATH from current environment to find claude
+        Map<String, String> env = processBuilder.environment();
+        String path = System.getenv("PATH");
+        if (path != null && !path.isEmpty()) {
+            env.put("PATH", path);
+            System.out.println("Set PATH: " + path);
+        }
 
         processBuilder.redirectErrorStream(true);
 
