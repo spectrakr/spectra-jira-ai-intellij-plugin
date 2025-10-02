@@ -850,13 +850,12 @@ public class JiraToolWindowContent {
             }
 
             // Execute command in background without showing terminal
-            String command = "claude mcp remove atlassian-jira";
+            String command = String.format("cd '%s' && claude mcp remove atlassian-jira", basePath);
             String osName = System.getProperty("os.name").toLowerCase();
             ProcessBuilder processBuilder = new ProcessBuilder(
-                    osName.contains("win") ? new String[]{"cmd", "/c", command} : new String[]{"/bin/sh", "-l", "-c", command}
+                    osName.contains("win") ? new String[]{"cmd", "/c", command} : new String[]{"/bin/sh", "-c", command}
             );
 
-            processBuilder.directory(new File(basePath));
             processBuilder.redirectErrorStream(true);
 
             Process process = processBuilder.start();
@@ -1120,16 +1119,15 @@ public class JiraToolWindowContent {
         String osName = System.getProperty("os.name").toLowerCase();
         System.out.println("Operating System: " + osName);
 
-        String command = String.format("claude mcp add-json atlassian-jira '%s' --scope project",
-            escapedMcpTemplate);
+        String command = String.format("cd '%s' && claude mcp add-json atlassian-jira '%s' --scope project",
+            basePath, escapedMcpTemplate);
         System.out.println("Command to execute: " + command);
 
         // Execute command in background without showing terminal
         ProcessBuilder processBuilder = new ProcessBuilder(
-            osName.contains("win") ? new String[]{"cmd", "/c", command} : new String[]{"/bin/sh", "-l", "-c", command}
+            osName.contains("win") ? new String[]{"cmd", "/c", command} : new String[]{"/bin/sh", "-c", command}
         );
 
-        processBuilder.directory(new File(basePath));
         processBuilder.redirectErrorStream(true);
 
         System.out.println("Starting process...");
