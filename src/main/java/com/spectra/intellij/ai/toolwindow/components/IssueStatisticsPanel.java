@@ -177,9 +177,9 @@ public class IssueStatisticsPanel extends JPanel {
         // Try to load avatar image
         if (avatarUrl != null && !avatarUrl.trim().isEmpty()) {
             try {
-                URL url = new URL(avatarUrl);
+                URL url = new java.net.URI(avatarUrl).toURL();
                 ImageIcon originalIcon = new ImageIcon(url);
-                
+
                 // Resize avatar to 16x16
                 Image scaledImage = originalIcon.getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH);
                 ImageIcon scaledIcon = new ImageIcon(scaledImage);

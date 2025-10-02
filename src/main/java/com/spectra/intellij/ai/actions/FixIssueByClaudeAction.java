@@ -4,8 +4,6 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.wm.ToolWindow;
-import com.intellij.openapi.wm.ToolWindowManager;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager;
 
@@ -38,27 +36,40 @@ public class FixIssueByClaudeAction extends AnAction {
         }
 
         try {
-            // Execute the command in a new terminal
+            String basePath = project.getBasePath();
+            if (basePath == null) {
+                throw new Exception("Project path not found");
+            }
+
+            // Execute the command in terminal
             String command = "claude --dangerously-skip-permissions \"/fix_issue " + issueKey + "\"";
 
-            TerminalToolWindowManager terminalManager = TerminalToolWindowManager.getInstance(project);
+            // Open terminal and execute command
+            ApplicationManager.getApplication().invokeLater(() -> {
+                try {
+                    // Use TerminalToolWindowManager to create terminal widget
+                    TerminalToolWindowManager terminalManager = TerminalToolWindowManager.getInstance(project);
+                    if (terminalManager != null) {
+                        // Create shell widget directly
+                        var shellWidget = terminalManager.createShellWidget(basePath, "Fix Issue: " + issueKey, true, false);
 
-            // Show the terminal tool window and execute command
-            ToolWindow terminalToolWindow = ToolWindowManager.getInstance(project).getToolWindow("Terminal");
-            if (terminalToolWindow != null) {
-                terminalToolWindow.activate(() -> {
-                    // Create new shell with focus=false to avoid terminal control sequence warnings
-                    var widget = terminalManager.createShellWidget(project.getBasePath(), "Fix Issue: " + issueKey, true, false);
-                    // Use invokeLater to ensure terminal is fully initialized
-                    ApplicationManager.getApplication().invokeLater(() -> {
-                        widget.sendCommandToExecute(command);
-                    });
-                });
-            }
+                        // Execute command in the terminal widget
+                        if (shellWidget != null) {
+                            shellWidget.sendCommandToExecute(command);
+                        }
+                    }
+                } catch (Exception ex) {
+                    com.intellij.openapi.ui.Messages.showErrorDialog(
+                        project,
+                        "Failed to open terminal: " + ex.getMessage(),
+                        "Error"
+                    );
+                }
+            });
         } catch (Exception ex) {
             com.intellij.openapi.ui.Messages.showErrorDialog(
                 project,
-                "Failed to open terminal: " + ex.getMessage(),
+                "Failed to execute command: " + ex.getMessage(),
                 "Error"
             );
         }
