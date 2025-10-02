@@ -1,9 +1,19 @@
 package com.spectra.intellij.ai.actions;
 
+import com.intellij.execution.configurations.GeneralCommandLine;
+import com.intellij.execution.process.OSProcessHandler;
+import com.intellij.execution.process.ProcessAdapter;
+import com.intellij.execution.process.ProcessEvent;
+import com.intellij.execution.ui.ConsoleView;
+import com.intellij.execution.ui.ConsoleViewContentType;
+import com.intellij.execution.ui.RunContentManager;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Key;
+import com.intellij.openapi.wm.ToolWindow;
+import com.intellij.openapi.wm.ToolWindowManager;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager;
 
@@ -47,16 +57,48 @@ public class FixIssueByClaudeAction extends AnAction {
             // Open terminal and execute command
             ApplicationManager.getApplication().invokeLater(() -> {
                 try {
-                    // Use TerminalToolWindowManager to create terminal widget
-                    TerminalToolWindowManager terminalManager = TerminalToolWindowManager.getInstance(project);
-                    if (terminalManager != null) {
-                        // Create shell widget directly
-                        var shellWidget = terminalManager.createShellWidget(basePath, "Fix Issue: " + issueKey, true, false);
+                    // Activate terminal window first
+                    ToolWindow terminalWindow = ToolWindowManager.getInstance(project).getToolWindow("Terminal");
+                    if (terminalWindow != null) {
+                        terminalWindow.activate(() -> {
+                            // Execute command in background
+                            ApplicationManager.getApplication().executeOnPooledThread(() -> {
+                                try {
+                                    // Create command line
+                                    GeneralCommandLine commandLine = new GeneralCommandLine();
+                                    commandLine.setExePath("sh");
+                                    commandLine.addParameter("-c");
+                                    commandLine.addParameter(command);
+                                    commandLine.setWorkDirectory(basePath);
 
-                        // Execute command in the terminal widget
-                        if (shellWidget != null) {
-                            shellWidget.sendCommandToExecute(command);
-                        }
+                                    // Start process
+                                    OSProcessHandler processHandler = new OSProcessHandler(commandLine);
+                                    processHandler.addProcessListener(new ProcessAdapter() {
+                                        @Override
+                                        public void processTerminated(@NotNull ProcessEvent event) {
+                                            ApplicationManager.getApplication().invokeLater(() -> {
+                                                if (event.getExitCode() != 0) {
+                                                    com.intellij.openapi.ui.Messages.showErrorDialog(
+                                                        project,
+                                                        "Command failed with exit code: " + event.getExitCode(),
+                                                        "Error"
+                                                    );
+                                                }
+                                            });
+                                        }
+                                    });
+                                    processHandler.startNotify();
+                                } catch (Exception ex) {
+                                    ApplicationManager.getApplication().invokeLater(() -> {
+                                        com.intellij.openapi.ui.Messages.showErrorDialog(
+                                            project,
+                                            "Failed to execute command: " + ex.getMessage(),
+                                            "Error"
+                                        );
+                                    });
+                                }
+                            });
+                        });
                     }
                 } catch (Exception ex) {
                     com.intellij.openapi.ui.Messages.showErrorDialog(
