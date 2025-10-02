@@ -1,0 +1,10 @@
+{
+    "command": "<uvx_path>",
+    "args": [
+        "mcp-atlassian",
+        "--jira-url", "<jira_url>",
+        "--jira-username", "<email>",
+        "--jira-token", "<access_token>"
+    ],
+    "env": {}
+}

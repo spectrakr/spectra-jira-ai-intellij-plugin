@@ -1,8 +1,12 @@
 package com.spectra.intellij.ai.toolwindow;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.wm.ToolWindow;
+import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.util.ui.JBUI;
 import com.spectra.intellij.ai.dialog.CreateIssueDialog;
 import com.spectra.intellij.ai.model.JiraIssue;
@@ -11,6 +15,7 @@ import com.spectra.intellij.ai.service.JiraService;
 import com.spectra.intellij.ai.settings.JiraSettings;
 import com.spectra.intellij.ai.toolwindow.components.*;
 import com.spectra.intellij.ai.toolwindow.handlers.*;
+import org.jetbrains.plugins.terminal.TerminalToolWindowManager;
 
 import javax.swing.*;
 import java.awt.*;
@@ -19,10 +24,15 @@ import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.io.File;
+import java.io.InputStream;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.function.Consumer;
-import com.spectra.intellij.ai.service.JiraService;
-import com.intellij.util.ui.JBUI;
 
 public class JiraToolWindowContent {
     
@@ -62,11 +72,11 @@ public class JiraToolWindowContent {
     
     private void initializeComponents() {
         contentPanel = new JPanel(new BorderLayout());
-        
+
         // Create components
         sprintListPanel = new SprintListPanel(project);
         filterPanel = new FilterPanel(project);
-        issueTableManager = new IssueTableManager();
+        issueTableManager = new IssueTableManager(project);
         issueStatisticsPanel = new IssueStatisticsPanel();
         issueDetailPanel = new IssueDetailPanel(project);
         
@@ -724,11 +734,45 @@ public class JiraToolWindowContent {
         exampleLabel.setForeground(Color.GRAY);
         projectPanel.add(projectIdField, BorderLayout.WEST);
         projectPanel.add(exampleLabel, BorderLayout.CENTER);
-        
+
         gbc.gridx = 1; gbc.gridy = 3;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         panel.add(projectPanel, gbc);
-        
+
+        // Jira MCP
+        gbc.gridx = 0; gbc.gridy = 4;
+        gbc.fill = GridBagConstraints.NONE;
+        panel.add(new JLabel("Jira MCP:"), gbc);
+
+        // Check if MCP is already connected
+        boolean isMcpConnected = checkMcpConnection();
+
+        if (isMcpConnected) {
+            // Show disconnect button only
+            JButton disconnectMcpButton = new JButton("Claude 연결 해제");
+            disconnectMcpButton.addActionListener(e -> {
+                removeMcpConnection();
+                // Refresh the dialog after removal
+                SwingUtilities.getWindowAncestor(panel).dispose();
+                showSettingsDialog();
+            });
+            gbc.gridx = 1; gbc.gridy = 4;
+            gbc.fill = GridBagConstraints.NONE;
+            panel.add(disconnectMcpButton, gbc);
+        } else {
+            // Show connect button only
+            JButton connectMcpButton = new JButton("Claude 연결");
+            connectMcpButton.addActionListener(e -> {
+                setupClaudeMcp(urlField.getText().trim(), userField.getText().trim(), new String(tokenField.getPassword()).trim());
+                // Refresh the dialog after setup
+                SwingUtilities.getWindowAncestor(panel).dispose();
+                showSettingsDialog();
+            });
+            gbc.gridx = 1; gbc.gridy = 4;
+            gbc.fill = GridBagConstraints.NONE;
+            panel.add(connectMcpButton, gbc);
+        }
+
         // Show dialog
         int result = JOptionPane.showConfirmDialog(
             contentPanel,
@@ -759,5 +803,279 @@ public class JiraToolWindowContent {
     
     public JComponent getContent() {
         return contentPanel;
+    }
+
+    private boolean checkMcpConnection() {
+        try {
+            String basePath = project.getBasePath();
+            if (basePath == null) {
+                return false;
+            }
+
+            Path mcpJsonPath = Paths.get(basePath, ".mcp.json");
+            File mcpJsonFile = mcpJsonPath.toFile();
+
+            if (!mcpJsonFile.exists()) {
+                return false;
+            }
+
+            String mcpContent = Files.readString(mcpJsonPath, StandardCharsets.UTF_8);
+            Gson gson = new Gson();
+            JsonObject mcpJson = gson.fromJson(mcpContent, JsonObject.class);
+
+            if (mcpJson != null && mcpJson.has("mcpServers")) {
+                JsonObject mcpServers = mcpJson.getAsJsonObject("mcpServers");
+                return mcpServers.has("atlassian-jira");
+            }
+
+            return false;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void removeMcpConnection() {
+        try {
+            String basePath = project.getBasePath();
+            if (basePath == null) {
+                throw new Exception("Project path not found");
+            }
+
+            // Execute command in background without showing terminal
+            String command = "claude mcp remove atlassian-jira";
+            ProcessBuilder processBuilder = new ProcessBuilder("sh", "-c", command);
+            processBuilder.directory(new File(basePath));
+            processBuilder.redirectErrorStream(true);
+
+            Process process = processBuilder.start();
+
+            // Wait for completion in background thread
+            ApplicationManager.getApplication().executeOnPooledThread(() -> {
+                try {
+                    int exitCode = process.waitFor();
+                    SwingUtilities.invokeLater(() -> {
+                        if (exitCode == 0) {
+                            Messages.showInfoMessage(
+                                project,
+                                "Jira MCP 연결 해제가 완료되었습니다.",
+                                "Jira MCP 연결 해제"
+                            );
+                        } else {
+                            Messages.showErrorDialog(
+                                project,
+                                "Jira MCP 연결 해제에 실패했습니다.",
+                                "오류"
+                            );
+                        }
+                    });
+                } catch (InterruptedException e) {
+                    SwingUtilities.invokeLater(() -> {
+                        Messages.showErrorDialog(
+                            project,
+                            "Jira MCP 연결 해제 중 오류가 발생했습니다: " + e.getMessage(),
+                            "오류"
+                        );
+                    });
+                }
+            });
+        } catch (Exception ex) {
+            Messages.showErrorDialog(
+                project,
+                "Jira MCP 연결 해제 중 오류가 발생했습니다:\n" + ex.getMessage(),
+                "오류"
+            );
+        }
+    }
+
+    private void setupClaudeMcp(String jiraUrl, String username, String apiToken) {
+        // Validate settings
+        if (jiraUrl.isEmpty() || username.isEmpty() || apiToken.isEmpty()) {
+            Messages.showWarningDialog(
+                project,
+                "Jira URL, Email, API Token을 모두 입력해주세요.",
+                "설정 확인"
+            );
+            return;
+        }
+
+        try {
+            // Check and create .claude/commands/fix_issue.md if needed
+            ensureFixIssueCommandExists();
+
+            // Check and setup MCP connection if needed
+            ensureMcpConnectionExists(jiraUrl, username, apiToken);
+
+            Messages.showInfoMessage(
+                project,
+                "Jira MCP 연결이 완료되었습니다.\n터미널을 확인하세요.",
+                "Jira MCP 연결"
+            );
+        } catch (Exception ex) {
+            Messages.showErrorDialog(
+                project,
+                "Jira MCP 연결 중 오류가 발생했습니다:\n" + ex.getMessage(),
+                "오류"
+            );
+        }
+    }
+
+    private void ensureFixIssueCommandExists() throws Exception {
+        String basePath = project.getBasePath();
+        if (basePath == null) {
+            return;
+        }
+
+        Path targetPath = Paths.get(basePath, ".claude", "commands", "fix_issue.md");
+        File targetFile = targetPath.toFile();
+
+        // If file already exists, skip
+        if (targetFile.exists()) {
+            return;
+        }
+
+        // Create parent directories if they don't exist
+        File parentDir = targetFile.getParentFile();
+        if (parentDir != null && !parentDir.exists()) {
+            parentDir.mkdirs();
+        }
+
+        // Copy fix_issue.md from resources to .claude/commands/
+        try (InputStream sourceStream = getClass().getResourceAsStream("/jira/fix_issue.md")) {
+            if (sourceStream != null) {
+                Files.copy(sourceStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
+    }
+
+    private String getUvxPath() throws Exception {
+        String osName = System.getProperty("os.name").toLowerCase();
+        String command;
+
+        if (osName.contains("win")) {
+            // Windows: use 'where' command
+            command = "where uvx";
+        } else {
+            // macOS/Linux: use 'which' command
+            command = "which uvx";
+        }
+
+        ProcessBuilder processBuilder = new ProcessBuilder(
+            osName.contains("win") ? new String[]{"cmd", "/c", command} : new String[]{"sh", "-c", command}
+        );
+        processBuilder.redirectErrorStream(true);
+
+        Process process = processBuilder.start();
+        StringBuilder output = new StringBuilder();
+
+        try (java.io.BufferedReader reader = new java.io.BufferedReader(
+            new java.io.InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                output.append(line).append("\n");
+            }
+        }
+
+        int exitCode = process.waitFor();
+        if (exitCode != 0 || output.toString().trim().isEmpty()) {
+            throw new Exception("uvx가 설치되어 있지 않습니다.\n\n다음 명령어로 설치해주세요:\npip install uv");
+        }
+
+        // Get first line (in case multiple paths are returned)
+        String uvxPath = output.toString().trim().split("\n")[0].trim();
+        return uvxPath;
+    }
+
+    private void ensureMcpConnectionExists(String jiraUrl, String username, String apiToken) throws Exception {
+        String basePath = project.getBasePath();
+        if (basePath == null) {
+            return;
+        }
+
+        Path mcpJsonPath = Paths.get(basePath, ".mcp.json");
+        File mcpJsonFile = mcpJsonPath.toFile();
+
+        // Check if .mcp.json exists and contains atlassian-jira
+        boolean needsSetup = true;
+        if (mcpJsonFile.exists()) {
+            String mcpContent = Files.readString(mcpJsonPath, StandardCharsets.UTF_8);
+            Gson gson = new Gson();
+            JsonObject mcpJson = gson.fromJson(mcpContent, JsonObject.class);
+
+            // Check if atlassian-jira exists in mcpServers
+            if (mcpJson != null && mcpJson.has("mcpServers")) {
+                JsonObject mcpServers = mcpJson.getAsJsonObject("mcpServers");
+                if (mcpServers.has("atlassian-jira")) {
+                    needsSetup = false;
+                }
+            }
+        }
+
+        if (!needsSetup) {
+            return;
+        }
+
+        // Get uvx path
+        String uvxPath = getUvxPath();
+
+        // Read mcp-add-json.txt template from resources
+        String mcpTemplate;
+        try (InputStream templateStream = getClass().getResourceAsStream("/jira/mcp-add-json.txt")) {
+            if (templateStream == null) {
+                throw new Exception("MCP template file not found in plugin resources");
+            }
+            mcpTemplate = new String(templateStream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+
+        // Replace placeholders with actual values
+        mcpTemplate = mcpTemplate.replace("<uvx_path>", uvxPath);
+        mcpTemplate = mcpTemplate.replace("<jira_url>", jiraUrl);
+        mcpTemplate = mcpTemplate.replace("<email>", username);
+        mcpTemplate = mcpTemplate.replace("<access_token>", apiToken);
+
+        // Ensure jiraUrl is properly formatted
+        if (!jiraUrl.endsWith("/")) {
+            jiraUrl += "/";
+        }
+        mcpTemplate = mcpTemplate.replace("https://enomix.atlassian.net/", jiraUrl);
+
+        // Escape single quotes in JSON content for shell command
+        String escapedMcpTemplate = mcpTemplate.replace("'", "'\"'\"'");
+
+        String osName = System.getProperty("os.name").toLowerCase();
+        String command = String.format("claude mcp add-json atlassian-jira '%s' --scope project",
+            escapedMcpTemplate);
+
+        // Execute command in background without showing terminal
+        ProcessBuilder processBuilder = new ProcessBuilder(
+            osName.contains("win") ? new String[]{"cmd", "/c", command} : new String[]{"sh", "-c", command}
+        );
+        processBuilder.directory(new File(basePath));
+        processBuilder.redirectErrorStream(true);
+
+        Process process = processBuilder.start();
+
+        // Wait for completion in background thread
+        ApplicationManager.getApplication().executeOnPooledThread(() -> {
+            try {
+                int exitCode = process.waitFor();
+                SwingUtilities.invokeLater(() -> {
+                    if (exitCode != 0) {
+                        Messages.showErrorDialog(
+                            project,
+                            "Jira MCP 연결에 실패했습니다.",
+                            "오류"
+                        );
+                    }
+                });
+            } catch (InterruptedException e) {
+                SwingUtilities.invokeLater(() -> {
+                    Messages.showErrorDialog(
+                        project,
+                        "Jira MCP 연결 중 오류가 발생했습니다: " + e.getMessage(),
+                        "오류"
+                    );
+                });
+            }
+        });
     }
 }

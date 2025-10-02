@@ -1,6 +1,9 @@
 package com.spectra.intellij.ai.toolwindow.components;
 
+import com.intellij.openapi.project.Project;
 import com.intellij.ui.table.JBTable;
+import com.spectra.intellij.ai.actions.FixIssueByClaudeAction;
+import com.spectra.intellij.ai.actions.FixIssueByChatGPTAction;
 import com.spectra.intellij.ai.model.JiraIssue;
 import com.spectra.intellij.ai.ui.IssueTableCellRenderer;
 
@@ -9,6 +12,8 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -17,7 +22,8 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 public class IssueTableManager {
-    
+
+    private final Project project;
     private final JBTable issueTable;
     private final DefaultTableModel issueTableModel;
     private final DefaultTableModel originalIssueTableModel; // Store unfiltered data
@@ -25,8 +31,9 @@ public class IssueTableManager {
     private final TableRowSorter<DefaultTableModel> tableSorter;
     
     private Consumer<String> onIssueSelected;
-    
-    public IssueTableManager() {
+
+    public IssueTableManager(Project project) {
+        this.project = project;
         issueTableModel = new DefaultTableModel(
             new String[]{"Key", "Summary", "Status", "Story Points", "Priority", "Assignee"}, 0
         ) {
@@ -54,9 +61,10 @@ public class IssueTableManager {
         
         // Setup custom comparator for Priority column (column index 4)
         setupPriorityComparator();
-        
+
         setupTable();
         setupSelectionListener();
+        setupContextMenu();
     }
     
     private void setupPriorityComparator() {
@@ -138,6 +146,66 @@ public class IssueTableManager {
                     if (onIssueSelected != null) {
                         onIssueSelected.accept(null);
                     }
+                }
+            }
+        });
+    }
+
+    private void setupContextMenu() {
+        issueTable.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    showContextMenu(e);
+                }
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    showContextMenu(e);
+                }
+            }
+
+            private void showContextMenu(MouseEvent e) {
+                int row = issueTable.rowAtPoint(e.getPoint());
+                if (row >= 0 && row < issueTable.getRowCount()) {
+                    issueTable.setRowSelectionInterval(row, row);
+
+                    // Get issue key from selected row
+                    int modelRow = issueTable.convertRowIndexToModel(row);
+                    String issueKey = (String) issueTableModel.getValueAt(modelRow, 0);
+
+                    // Create popup menu
+                    JPopupMenu popupMenu = new JPopupMenu();
+
+                    // Create menu items
+                    JMenuItem claudeMenuItem = new JMenuItem("Fix issue (by claude)");
+                    claudeMenuItem.addActionListener(ev -> {
+                        FixIssueByClaudeAction claudeAction = new FixIssueByClaudeAction();
+                        claudeAction.setIssueKey(issueKey);
+                        try {
+                            claudeAction.execute(project);
+                        } catch (Exception ex) {
+                            com.intellij.openapi.diagnostic.Logger.getInstance(IssueTableManager.class).error(ex);
+                        }
+                    });
+
+                    JMenuItem chatgptMenuItem = new JMenuItem("Fix issue (by chatgpt)");
+                    chatgptMenuItem.addActionListener(ev -> {
+                        FixIssueByChatGPTAction chatgptAction = new FixIssueByChatGPTAction();
+                        chatgptAction.setIssueKey(issueKey);
+                        try {
+                            chatgptAction.execute(project);
+                        } catch (Exception ex) {
+                            com.intellij.openapi.diagnostic.Logger.getInstance(IssueTableManager.class).error(ex);
+                        }
+                    });
+
+                    popupMenu.add(claudeMenuItem);
+                    popupMenu.add(chatgptMenuItem);
+
+                    popupMenu.show(e.getComponent(), e.getX(), e.getY());
                 }
             }
         });

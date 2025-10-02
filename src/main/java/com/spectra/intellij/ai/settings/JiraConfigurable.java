@@ -15,13 +15,11 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.IOException;
 import java.io.InputStream;
 import java.awt.Desktop;
 import java.net.URI;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Properties;
 
 public class JiraConfigurable implements Configurable {
     
@@ -147,7 +145,7 @@ public class JiraConfigurable implements Configurable {
             projectPanel.add(defaultProjectKeyField, BorderLayout.WEST);
             projectPanel.add(exampleLabel, BorderLayout.CENTER);
             panel.add(projectPanel, gbc);
-            
+
             // Buttons Panel
             gbc.gridx = 0; gbc.gridy = 4; gbc.gridwidth = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0; gbc.weighty = 0;
             gbc.anchor = GridBagConstraints.CENTER;
@@ -346,7 +344,7 @@ public class JiraConfigurable implements Configurable {
 
         private void showAutoUpdateGuide() {
             String repositoryUrl = "https://spectra-team.github.io/spectra-jira-ai-intellij-plugin/updatePlugins.xml";
-            
+
             StringBuilder message = new StringBuilder();
             message.append("자동 업데이트를 설정하려면 다음 단계를 따르세요:\n\n");
             message.append("1. File → Settings → Plugins로 이동\n");
@@ -356,7 +354,7 @@ public class JiraConfigurable implements Configurable {
             message.append("4. 'OK' 버튼 클릭\n");
             message.append("5. 이제 새 버전이 출시되면 자동으로 알림을 받게 됩니다!\n\n");
             message.append("💡 URL이 클립보드에 복사되었습니다.");
-            
+
             // Copy URL to clipboard
             try {
                 java.awt.Toolkit.getDefaultToolkit()
@@ -365,11 +363,12 @@ public class JiraConfigurable implements Configurable {
             } catch (Exception e) {
                 // Ignore clipboard errors
             }
-            
+
             Messages.showInfoMessage(
                 message.toString(),
                 "자동 업데이트 설정 가이드"
             );
         }
+
     }
 }
