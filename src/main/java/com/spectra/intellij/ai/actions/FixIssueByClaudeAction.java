@@ -47,18 +47,22 @@ public class FixIssueByClaudeAction extends AnAction {
                 try {
                     TerminalToolWindowManager terminalManager = TerminalToolWindowManager.getInstance(project);
 
-                    // Use reflection to support different IntelliJ versions
+                    // Set accessible to bypass module restrictions
+                    Method createShellWidgetMethod = null;
+                    Object widget = null;
+
                     try {
                         // Try new API (2023.3+)
-                        Method createShellWidgetMethod = terminalManager.getClass().getMethod(
+                        createShellWidgetMethod = terminalManager.getClass().getMethod(
                             "createShellWidget",
                             String.class,
                             String.class,
                             boolean.class,
                             boolean.class
                         );
+                        createShellWidgetMethod.setAccessible(true);
 
-                        Object widget = createShellWidgetMethod.invoke(
+                        widget = createShellWidgetMethod.invoke(
                             terminalManager,
                             project.getBasePath(),
                             "Fix Issue: " + issueKey,
@@ -68,6 +72,7 @@ public class FixIssueByClaudeAction extends AnAction {
 
                         // Try to execute command
                         Method sendCommandMethod = widget.getClass().getMethod("sendCommandToExecute", String.class);
+                        sendCommandMethod.setAccessible(true);
                         sendCommandMethod.invoke(widget, command);
                     } catch (NoSuchMethodException e1) {
                         // Fallback: Try older API
@@ -77,6 +82,7 @@ public class FixIssueByClaudeAction extends AnAction {
                                 String.class,
                                 String.class
                             );
+                            createLocalShellWidgetMethod.setAccessible(true);
 
                             Object shellTerminalWidget = createLocalShellWidgetMethod.invoke(
                                 terminalManager,
@@ -86,6 +92,7 @@ public class FixIssueByClaudeAction extends AnAction {
 
                             // Execute command
                             Method executeCommandMethod = shellTerminalWidget.getClass().getMethod("executeCommand", String.class);
+                            executeCommandMethod.setAccessible(true);
                             executeCommandMethod.invoke(shellTerminalWidget, command);
                         } catch (Exception e2) {
                             // If all else fails, just show the command to user
@@ -95,6 +102,13 @@ public class FixIssueByClaudeAction extends AnAction {
                                 "Fix Issue: " + issueKey
                             );
                         }
+                    } catch (IllegalAccessException e1) {
+                        // Module access issue - show command to user
+                        com.intellij.openapi.ui.Messages.showInfoMessage(
+                            project,
+                            "터미널에서 다음 명령어를 실행해주세요:\n\n" + command,
+                            "Fix Issue: " + issueKey
+                        );
                     }
                 } catch (Exception ex) {
                     com.intellij.openapi.ui.Messages.showErrorDialog(

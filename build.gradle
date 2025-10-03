@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.spectra.intellij.ai'
-version = '1.0.30'
+version = '1.0.31'
 
 // Dynamic version from Git tag or environment variable
 def getVersionName() {
@@ -65,22 +65,30 @@ intellijPlatform {
             sinceBuild = '251'
         }
     }
-    
+
     signing {
         certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN")
         privateKey = providers.environmentVariable("PRIVATE_KEY")
         password = providers.environmentVariable("PRIVATE_KEY_PASSWORD")
     }
-    
+
     publishing {
         token = providers.environmentVariable("PUBLISH_TOKEN")
     }
-    
+
     pluginVerification {
         ides {
             ide('IC', '2023.3.6')
         }
     }
+}
+
+// Add JVM arguments to allow reflective access to terminal widgets
+tasks.named('runIde') {
+    jvmArgs = [
+        '--add-opens=java.base/java.lang.reflect=ALL-UNNAMED',
+        '--add-opens=com.intellij.terminal/com.intellij.terminal=ALL-UNNAMED'
+    ]
 }
 
 tasks.withType(JavaCompile) {
