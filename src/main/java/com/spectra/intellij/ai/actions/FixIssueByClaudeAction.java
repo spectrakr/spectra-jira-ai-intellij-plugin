@@ -1,19 +1,10 @@
 package com.spectra.intellij.ai.actions;
 
-import com.intellij.execution.configurations.GeneralCommandLine;
-import com.intellij.execution.process.OSProcessHandler;
-import com.intellij.execution.process.ProcessAdapter;
-import com.intellij.execution.process.ProcessEvent;
-import com.intellij.execution.ui.ConsoleView;
-import com.intellij.execution.ui.ConsoleViewContentType;
-import com.intellij.execution.ui.RunContentManager;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.util.Key;
-import com.intellij.openapi.wm.ToolWindow;
-import com.intellij.openapi.wm.ToolWindowManager;
+import com.intellij.terminal.ui.TerminalWidget;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager;
 
@@ -46,72 +37,29 @@ public class FixIssueByClaudeAction extends AnAction {
         }
 
         try {
-            String basePath = project.getBasePath();
-            if (basePath == null) {
-                throw new Exception("Project path not found");
-            }
-
             // Execute the command in terminal
             String command = "claude --dangerously-skip-permissions \"/fix_issue " + issueKey + "\"";
+            System.out.println("Executing command: " + command);
 
             // Open terminal and execute command
             ApplicationManager.getApplication().invokeLater(() -> {
                 try {
-                    // Activate terminal window first
-                    ToolWindow terminalWindow = ToolWindowManager.getInstance(project).getToolWindow("Terminal");
-                    if (terminalWindow != null) {
-                        terminalWindow.activate(() -> {
-                            // Execute command in background
-                            ApplicationManager.getApplication().executeOnPooledThread(() -> {
-                                try {
-                                    // Create command line
-                                    String osName = System.getProperty("os.name").toLowerCase();
-                                    GeneralCommandLine commandLine = new GeneralCommandLine();
-                                    if (osName.contains("win")) {
-                                        commandLine.setExePath("cmd");
-                                        commandLine.addParameter("/c");
-                                    } else {
-                                        commandLine.setExePath("/bin/sh");
-                                        commandLine.addParameter("-l");
-                                        commandLine.addParameter("-c");
-                                    }
+                    TerminalToolWindowManager terminalManager = TerminalToolWindowManager.getInstance(project);
 
-                                    commandLine.addParameter(command);
-                                    commandLine.setWorkDirectory(basePath);
+                    // Create new terminal tab and execute command
+                    TerminalWidget widget = terminalManager.createShellWidget(
+                        project.getBasePath(),
+                        "Fix Issue: " + issueKey,
+                        true,
+                        true
+                    );
 
-                                    // Start process
-                                    OSProcessHandler processHandler = new OSProcessHandler(commandLine);
-                                    processHandler.addProcessListener(new ProcessAdapter() {
-                                        @Override
-                                        public void processTerminated(@NotNull ProcessEvent event) {
-                                            ApplicationManager.getApplication().invokeLater(() -> {
-                                                if (event.getExitCode() != 0) {
-                                                    com.intellij.openapi.ui.Messages.showErrorDialog(
-                                                        project,
-                                                        "Command failed with exit code: " + event.getExitCode(),
-                                                        "Error"
-                                                    );
-                                                }
-                                            });
-                                        }
-                                    });
-                                    processHandler.startNotify();
-                                } catch (Exception ex) {
-                                    ApplicationManager.getApplication().invokeLater(() -> {
-                                        com.intellij.openapi.ui.Messages.showErrorDialog(
-                                            project,
-                                            "Failed to execute command: " + ex.getMessage(),
-                                            "Error"
-                                        );
-                                    });
-                                }
-                            });
-                        });
-                    }
+                    // Execute command using sendCommandToExecute
+                    widget.sendCommandToExecute(command);
                 } catch (Exception ex) {
                     com.intellij.openapi.ui.Messages.showErrorDialog(
                         project,
-                        "Failed to open terminal: " + ex.getMessage(),
+                        "Failed to execute command in terminal: " + ex.getMessage(),
                         "Error"
                     );
                 }
