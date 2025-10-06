@@ -3,8 +3,11 @@ package com.spectra.intellij.ai.toolwindow.components;
 import com.intellij.openapi.project.Project;
 import com.intellij.ui.table.JBTable;
 import com.spectra.intellij.ai.actions.FixIssueByClaudeAction;
+import com.spectra.intellij.ai.actions.FixIssueByCodexAction;
+import com.spectra.intellij.ai.actions.FixIssueByGeminiAction;
 import com.spectra.intellij.ai.actions.FixIssueByChatGPTAction;
 import com.spectra.intellij.ai.model.JiraIssue;
+import com.spectra.intellij.ai.settings.JiraSettings;
 import com.spectra.intellij.ai.ui.IssueTableCellRenderer;
 
 import javax.swing.*;
@@ -179,8 +182,32 @@ public class IssueTableManager {
                     // Create popup menu
                     JPopupMenu popupMenu = new JPopupMenu();
 
-                    // Create menu items
-                    JMenuItem claudeMenuItem = new JMenuItem("Fix issue (by claude)");
+                    // Create "Open in Browser" menu item
+                    JMenuItem openInBrowserMenuItem = new JMenuItem("웹브라우저로 보기");
+                    openInBrowserMenuItem.addActionListener(ev -> {
+                        try {
+                            JiraSettings settings = JiraSettings.getInstance();
+                            String jiraUrl = settings.getJiraUrl();
+                            if (!jiraUrl.endsWith("/")) {
+                                jiraUrl += "/";
+                            }
+                            String issueUrl = jiraUrl + "browse/" + issueKey;
+
+                            java.awt.Desktop desktop = java.awt.Desktop.getDesktop();
+                            if (desktop.isSupported(java.awt.Desktop.Action.BROWSE)) {
+                                desktop.browse(new java.net.URI(issueUrl));
+                            }
+                        } catch (Exception ex) {
+                            com.intellij.openapi.diagnostic.Logger.getInstance(IssueTableManager.class).error(ex);
+                        }
+                    });
+
+                    // Add separator
+                    popupMenu.add(openInBrowserMenuItem);
+                    popupMenu.addSeparator();
+
+                    // Create menu items with proper spacing
+                    JMenuItem claudeMenuItem = new JMenuItem("Fix issue (by Claude)         ");
                     claudeMenuItem.addActionListener(ev -> {
                         FixIssueByClaudeAction claudeAction = new FixIssueByClaudeAction();
                         claudeAction.setIssueKey(issueKey);
@@ -191,19 +218,8 @@ public class IssueTableManager {
                         }
                     });
 
-                    JMenuItem chatgptMenuItem = new JMenuItem("Fix issue (by chatgpt)");
-                    chatgptMenuItem.addActionListener(ev -> {
-                        FixIssueByChatGPTAction chatgptAction = new FixIssueByChatGPTAction();
-                        chatgptAction.setIssueKey(issueKey);
-                        try {
-                            chatgptAction.execute(project);
-                        } catch (Exception ex) {
-                            com.intellij.openapi.diagnostic.Logger.getInstance(IssueTableManager.class).error(ex);
-                        }
-                    });
-
+                    // Add some visual separation between menu items
                     popupMenu.add(claudeMenuItem);
-                    popupMenu.add(chatgptMenuItem);
 
                     popupMenu.show(e.getComponent(), e.getX(), e.getY());
                 }

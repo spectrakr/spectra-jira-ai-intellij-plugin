@@ -11,6 +11,9 @@ import com.spectra.intellij.ai.service.JiraService;
 import com.spectra.intellij.ai.settings.JiraSettings;
 import com.spectra.intellij.ai.toolwindow.components.*;
 import com.spectra.intellij.ai.toolwindow.handlers.*;
+import com.spectra.intellij.ai.toolwindow.handlers.ClaudeMcpConnectionHandler;
+import com.spectra.intellij.ai.toolwindow.handlers.CodexMcpConnectionHandler;
+import com.spectra.intellij.ai.toolwindow.handlers.GeminiMcpConnectionHandler;
 
 import javax.swing.*;
 import java.awt.*;
@@ -44,8 +47,10 @@ public class JiraToolWindowContent {
     private AssigneeSelectionHandler assigneeHandler;
     private EpicSelectionHandler epicHandler;
 
-    // MCP connection handler
-    private ClaudeMcpConnectionHandler mcpConnectionHandler;
+    // MCP connection handlers
+    private ClaudeMcpConnectionHandler claudeMcpConnectionHandler;
+    private CodexMcpConnectionHandler codexMcpConnectionHandler;
+    private GeminiMcpConnectionHandler geminiMcpConnectionHandler;
 
     // State
     private String currentSprintId;
@@ -54,7 +59,9 @@ public class JiraToolWindowContent {
     
     public JiraToolWindowContent(Project project) {
         this.project = project;
-        this.mcpConnectionHandler = new ClaudeMcpConnectionHandler(project);
+        this.claudeMcpConnectionHandler = new ClaudeMcpConnectionHandler(project);
+        this.codexMcpConnectionHandler = new CodexMcpConnectionHandler(project);
+        this.geminiMcpConnectionHandler = new GeminiMcpConnectionHandler(project);
         initializeComponents();
         setupEventHandlers();
         refreshStatus();
@@ -736,32 +743,33 @@ public class JiraToolWindowContent {
         panel.add(new JLabel("Jira MCP:"), gbc);
 
         // Check if MCP is already connected
-        boolean isMcpConnected = mcpConnectionHandler.checkMcpConnection();
+        boolean isMcpConnected = claudeMcpConnectionHandler.checkMcpConnection();
 
         // Create button panel that will be updated
-        JPanel mcpButtonContainer = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        JPanel mcpButtonContainer = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
 
-        JButton mcpButton = new JButton(isMcpConnected ? "Claude 연결 해제" : "Claude 연결");
-        mcpButton.addActionListener(e -> {
-            boolean isConnected = mcpConnectionHandler.checkMcpConnection();
+        // Claude connection button
+        JButton claudeButton = new JButton(isMcpConnected ? "Claude 연결 해제" : "Claude 연결");
+        claudeButton.addActionListener(e -> {
+            boolean isConnected = claudeMcpConnectionHandler.checkMcpConnection();
             if (isConnected) {
                 // Disconnect
-                mcpConnectionHandler.removeMcpConnection(() -> {
+                claudeMcpConnectionHandler.removeMcpConnection(() -> {
                     // Re-check MCP connection status and update button
                     SwingUtilities.invokeLater(() -> {
-                        boolean newStatus = mcpConnectionHandler.checkMcpConnection();
-                        mcpButton.setText(newStatus ? "Claude 연결 해제" : "Claude 연결");
+                        boolean newStatus = claudeMcpConnectionHandler.checkMcpConnection();
+                        claudeButton.setText(newStatus ? "Claude 연결 해제" : "Claude 연결");
                         mcpButtonContainer.revalidate();
                         mcpButtonContainer.repaint();
                     });
                 });
             } else {
                 // Connect
-                mcpConnectionHandler.setupClaudeMcp(urlField.getText().trim(), userField.getText().trim(), new String(tokenField.getPassword()).trim(), () -> {
+                claudeMcpConnectionHandler.setupClaudeMcp(urlField.getText().trim(), userField.getText().trim(), new String(tokenField.getPassword()).trim(), () -> {
                     // Re-check MCP connection status and update button
                     SwingUtilities.invokeLater(() -> {
-                        boolean newStatus = mcpConnectionHandler.checkMcpConnection();
-                        mcpButton.setText(newStatus ? "Claude 연결 해제" : "Claude 연결");
+                        boolean newStatus = claudeMcpConnectionHandler.checkMcpConnection();
+                        claudeButton.setText(newStatus ? "Claude 연결 해제" : "Claude 연결");
                         mcpButtonContainer.revalidate();
                         mcpButtonContainer.repaint();
                     });
@@ -769,7 +777,21 @@ public class JiraToolWindowContent {
             }
         });
 
-        mcpButtonContainer.add(mcpButton);
+        // Codex connection button
+//        JButton codexButton = new JButton("Codex 연결");
+//        codexButton.addActionListener(e ->
+//            codexMcpConnectionHandler.setupCodexMcp(urlField.getText().trim(), userField.getText().trim(), new String(tokenField.getPassword()).trim())
+//        );
+//
+//        // Gemini connection button
+//        JButton geminiButton = new JButton("Gemini 연결");
+//        geminiButton.addActionListener(e ->
+//            geminiMcpConnectionHandler.setupGeminiMcp(urlField.getText().trim(), userField.getText().trim(), new String(tokenField.getPassword()).trim())
+//        );
+
+        mcpButtonContainer.add(claudeButton);
+//        mcpButtonContainer.add(codexButton);
+//        mcpButtonContainer.add(geminiButton);
         gbc.gridx = 1; gbc.gridy = 4;
         gbc.fill = GridBagConstraints.NONE;
         panel.add(mcpButtonContainer, gbc);
