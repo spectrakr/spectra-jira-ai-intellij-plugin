@@ -39,7 +39,8 @@ public class FixIssueByGeminiAction extends AnAction {
 
         try {
             // Execute the command in terminal
-            String command = "gemini --dangerously-skip-permissions \"/fix_issue " + issueKey + "\"";
+//            String command = "gemini --dangerously-skip-permissions \"/fix_issue " + issueKey + "\"";
+            String command = "gemini --yolo \"/fix-issue " + issueKey + "\"";
             System.out.println("Executing command: " + command);
 
             // Open terminal and execute command

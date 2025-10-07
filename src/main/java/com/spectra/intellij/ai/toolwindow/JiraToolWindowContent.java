@@ -783,15 +783,15 @@ public class JiraToolWindowContent {
 //            codexMcpConnectionHandler.setupCodexMcp(urlField.getText().trim(), userField.getText().trim(), new String(tokenField.getPassword()).trim())
 //        );
 //
-//        // Gemini connection button
-//        JButton geminiButton = new JButton("Gemini 연결");
-//        geminiButton.addActionListener(e ->
-//            geminiMcpConnectionHandler.setupGeminiMcp(urlField.getText().trim(), userField.getText().trim(), new String(tokenField.getPassword()).trim())
-//        );
+        // Gemini connection button
+        JButton geminiButton = new JButton("Gemini 연결");
+        geminiButton.addActionListener(e ->
+            geminiMcpConnectionHandler.setupGeminiMcp(urlField.getText().trim(), userField.getText().trim(), new String(tokenField.getPassword()).trim())
+        );
 
         mcpButtonContainer.add(claudeButton);
 //        mcpButtonContainer.add(codexButton);
-//        mcpButtonContainer.add(geminiButton);
+        mcpButtonContainer.add(geminiButton);
         gbc.gridx = 1; gbc.gridy = 4;
         gbc.fill = GridBagConstraints.NONE;
         panel.add(mcpButtonContainer, gbc);

@@ -218,8 +218,20 @@ public class IssueTableManager {
                         }
                     });
 
+                    JMenuItem geminiMenuItem = new JMenuItem("Fix issue (by Gemini)         ");
+                    geminiMenuItem.addActionListener(ev -> {
+                        FixIssueByGeminiAction geminiAction = new FixIssueByGeminiAction();
+                        geminiAction.setIssueKey(issueKey);
+                        try {
+                            geminiAction.execute(project);
+                        } catch (Exception ex) {
+                            com.intellij.openapi.diagnostic.Logger.getInstance(IssueTableManager.class).error(ex);
+                        }
+                    });
+
                     // Add some visual separation between menu items
                     popupMenu.add(claudeMenuItem);
+                    popupMenu.add(geminiMenuItem);
 
                     popupMenu.show(e.getComponent(), e.getX(), e.getY());
                 }

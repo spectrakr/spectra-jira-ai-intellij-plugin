@@ -1,0 +1,11 @@
+다음 순서에 따라 이슈를 처리하세요:
+1. atlassian-jira mcp를 활용해서 이슈 내용 확인 (issueKey: $1)
+2. git branch -b develop feature/$1
+3. 이슈 내용에 따라 작업 실행
+4. git commit and push
+5. gh pr create를 사용하여 pull request 생성
+    - pull_request_template.md를 활용
+    - 아래 2가지 내용은 필수 입력사항
+        - 해결하려는 문제가 무엇인가요? (필수)
+        - 어떻게 해결했나요? (필수)
+
