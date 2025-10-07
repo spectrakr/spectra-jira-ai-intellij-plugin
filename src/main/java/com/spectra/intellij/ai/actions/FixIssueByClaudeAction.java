@@ -39,7 +39,8 @@ public class FixIssueByClaudeAction extends AnAction {
 
         try {
             // Execute the command in terminal
-            String command = "claude --dangerously-skip-permissions \"/fix_issue " + issueKey + "\"";
+//            String command = "claude --dangerously-skip-permissions \"/fix_issue " + issueKey + "\"";
+            String command = "claude --dangerously-skip-permissions \"fix-issue-agent sugagent를 이용하여 \"" + issueKey + "\" 이슈 처리해줘\"";
             System.out.println("Executing command: " + command);
 
             // Open terminal and execute command

@@ -120,7 +120,8 @@ public class ClaudeMcpConnectionHandler {
 
         try {
             // Check and create .claude/commands/fix_issue.md if needed
-            ensureFixIssueCommandExists();
+//            ensureFixIssueCommandExists();
+            ensureFixIssueAgentsExists();
 
             // Generate and show script instead of executing directly
             showMcpConnectionScript(jiraUrl, username, apiToken, onComplete);
@@ -157,7 +158,35 @@ public class ClaudeMcpConnectionHandler {
         }
 
         // Copy fix_issue.md from resources to .claude/commands/
-        try (InputStream sourceStream = getClass().getResourceAsStream("/jira/fix_issue.md")) {
+        try (InputStream sourceStream = getClass().getResourceAsStream("/jira/commands/fix_issue.md")) {
+            if (sourceStream != null) {
+                Files.copy(sourceStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
+    }
+
+    private void ensureFixIssueAgentsExists() throws Exception {
+        String basePath = project.getBasePath();
+        if (basePath == null) {
+            return;
+        }
+
+        Path targetPath = Paths.get(basePath, ".claude", "agents", "fix-issue.md");
+        File targetFile = targetPath.toFile();
+
+        // If file already exists, skip
+        if (targetFile.exists()) {
+            return;
+        }
+
+        // Create parent directories if they don't exist
+        File parentDir = targetFile.getParentFile();
+        if (parentDir != null && !parentDir.exists()) {
+            parentDir.mkdirs();
+        }
+
+        // Copy fix_issue.md from resources to .claude/commands/
+        try (InputStream sourceStream = getClass().getResourceAsStream("/jira/agents/fix-issue.md")) {
             if (sourceStream != null) {
                 Files.copy(sourceStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
             }
