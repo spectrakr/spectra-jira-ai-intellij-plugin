@@ -158,7 +158,7 @@ public class ClaudeMcpConnectionHandler {
         }
 
         // Copy fix-issue.md from resources to .claude/commands/
-        try (InputStream sourceStream = getClass().getResourceAsStream("/jira/commands/fix-issue.md")) {
+        try (InputStream sourceStream = getClass().getResourceAsStream("/.claude/commands/fix-issue.md")) {
             if (sourceStream != null) {
                 Files.copy(sourceStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
             }
@@ -185,8 +185,8 @@ public class ClaudeMcpConnectionHandler {
             parentDir.mkdirs();
         }
 
-        // Copy fix-issue.md from resources to .claude/commands/
-        try (InputStream sourceStream = getClass().getResourceAsStream("/jira/agents/fix-issue.md")) {
+        // Copy fix-issue.md from resources to .claude/agents/
+        try (InputStream sourceStream = getClass().getResourceAsStream("/.claude/agents/fix-issue.md")) {
             if (sourceStream != null) {
                 Files.copy(sourceStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
             }
@@ -311,7 +311,7 @@ public class ClaudeMcpConnectionHandler {
         // Read mcp-add-json.txt template from resources
         System.out.println("Reading MCP template from resources...");
         String mcpTemplate;
-        try (InputStream templateStream = getClass().getResourceAsStream("/jira/mcp-add-json.txt")) {
+        try (InputStream templateStream = getClass().getResourceAsStream("/.claude/mcp-add-json.txt")) {
             if (templateStream == null) {
                 System.err.println("ERROR: MCP template file not found in plugin resources");
                 throw new Exception("MCP template file not found in plugin resources");

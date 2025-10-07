@@ -3,8 +3,13 @@ package com.spectra.intellij.ai.toolwindow.handlers;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 
+import java.io.File;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 
 public class GeminiMcpConnectionHandler {
 
@@ -25,6 +30,9 @@ public class GeminiMcpConnectionHandler {
         }
 
         try {
+            // Check and create .gemini/commands/fix-issue.toml if needed
+            ensureFixIssueCommandExists();
+
             // Get uvx path
             String uvxPath = getUvxPath();
 
@@ -75,8 +83,7 @@ public class GeminiMcpConnectionHandler {
             Messages.showInfoMessage(
                 project,
                 "Gemini MCP 설정이 .gemini/settings.json에 추가되었습니다.\n\n" +
-                "파일 경로: " + settingsFile.getAbsolutePath() + "\n\n" +
-                "Gemini를 재시작하면 Jira MCP가 연결됩니다.",
+                "파일 경로: " + settingsFile.getAbsolutePath() + "\n\n",
                 "Gemini MCP 연결 완료"
             );
 
@@ -86,6 +93,34 @@ public class GeminiMcpConnectionHandler {
                 "설정 파일 생성 중 오류가 발생했습니다: " + e.getMessage(),
                 "오류"
             );
+        }
+    }
+
+    private void ensureFixIssueCommandExists() throws Exception {
+        String basePath = project.getBasePath();
+        if (basePath == null) {
+            return;
+        }
+
+        Path targetPath = Paths.get(basePath, ".gemini", "commands", "fix-issue.toml");
+        File targetFile = targetPath.toFile();
+
+        // If file already exists, skip
+        if (targetFile.exists()) {
+            return;
+        }
+
+        // Create parent directories if they don't exist
+        File parentDir = targetFile.getParentFile();
+        if (parentDir != null && !parentDir.exists()) {
+            parentDir.mkdirs();
+        }
+
+        // Copy fix-issue.toml from resources to .gemini/commands/
+        try (InputStream sourceStream = getClass().getResourceAsStream("/.gemini/commands/fix-issue.toml")) {
+            if (sourceStream != null) {
+                Files.copy(sourceStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
+            }
         }
     }
 
