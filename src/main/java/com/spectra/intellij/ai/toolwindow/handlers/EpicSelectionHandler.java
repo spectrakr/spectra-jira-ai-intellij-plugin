@@ -95,14 +95,6 @@ public class EpicSelectionHandler {
     private void showEpicSelectionPopup() {
         updateStatus("Loading epics...");
         
-        // Get board ID from currently selected sprint
-        String boardId = getCurrentBoardId();
-
-        if (boardId == null) {
-            updateStatus("No sprint selected or no board information available.");
-            return;
-        }
-
         jiraService.getEpicListAsync()
                 .thenAccept(epics -> SwingUtilities.invokeLater(() -> {
                     showEpicSearchPopup(epics);
