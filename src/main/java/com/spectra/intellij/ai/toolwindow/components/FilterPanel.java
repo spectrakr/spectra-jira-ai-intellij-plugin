@@ -233,4 +233,37 @@ public class FilterPanel extends JPanel {
     public void setCreateIssueButtonEnabled(boolean enabled) {
         createIssueButton.setEnabled(enabled);
     }
+
+    // Restore previously selected filter values
+    public void restoreFilterSelections(String issueType, String assignee, String status) {
+        // Restore issue type selection
+        if (issueType != null && !issueType.equals("All")) {
+            for (int i = 0; i < issueTypeFilter.getItemCount(); i++) {
+                if (issueType.equals(issueTypeFilter.getItemAt(i))) {
+                    issueTypeFilter.setSelectedIndex(i);
+                    break;
+                }
+            }
+        }
+
+        // Restore assignee selection
+        if (assignee != null && !assignee.equals("All")) {
+            for (int i = 0; i < assigneeFilter.getItemCount(); i++) {
+                if (assignee.equals(assigneeFilter.getItemAt(i))) {
+                    assigneeFilter.setSelectedIndex(i);
+                    break;
+                }
+            }
+        }
+
+        // Restore status selection
+        if (status != null && !status.equals("All")) {
+            for (int i = 0; i < statusFilter.getItemCount(); i++) {
+                if (status.equals(statusFilter.getItemAt(i))) {
+                    statusFilter.setSelectedIndex(i);
+                    break;
+                }
+            }
+        }
+    }
 }

@@ -466,12 +466,17 @@ public class JiraToolWindowContent {
                 SwingUtilities.invokeLater(() -> {
                     issueTableManager.updateIssues(issues);
                     issueStatisticsPanel.updateStatistics(issues);
-                    
+
                     // Only clear issue detail if we're not preserving selection
                     if (preserveSelectedIssueKey == null) {
                         clearIssueDetail();
                     }
-                    
+
+                    // Save current filter selections before clearing
+                    String selectedIssueType = filterPanel.getSelectedIssueType();
+                    String selectedAssignee = filterPanel.getSelectedAssignee();
+                    String selectedStatus = filterPanel.getSelectedStatus();
+
                     // Clear and populate filter options
                     filterPanel.clearFilterOptions();
                     for (JiraIssue issue : issues) {
@@ -480,12 +485,15 @@ public class JiraToolWindowContent {
                         String status = issue.getStatus() != null ? issue.getStatus() : "";
                         filterPanel.addToFilterOptions(issueType, assignee, status);
                     }
-                    
+
+                    // Restore previous filter selections
+                    filterPanel.restoreFilterSelections(selectedIssueType, selectedAssignee, selectedStatus);
+
                     // Restore selection if requested
                     if (preserveSelectedIssueKey != null) {
                         issueTableManager.selectIssueByKey(preserveSelectedIssueKey);
                     }
-                    
+
                     updateStatus("Loaded " + issues.size() + " issues from sprint");
                 });
             })
