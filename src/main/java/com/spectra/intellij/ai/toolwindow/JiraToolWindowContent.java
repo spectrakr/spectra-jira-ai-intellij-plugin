@@ -489,6 +489,9 @@ public class JiraToolWindowContent {
                     // Restore previous filter selections
                     filterPanel.restoreFilterSelections(selectedIssueType, selectedAssignee, selectedStatus);
 
+                    // Apply the restored filters to the table
+                    applyFilters();
+
                     // Restore selection if requested
                     if (preserveSelectedIssueKey != null) {
                         issueTableManager.selectIssueByKey(preserveSelectedIssueKey);
