@@ -4,6 +4,9 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
+import com.spectra.intellij.ai.service.AccessLogService;
+import com.spectra.intellij.ai.service.JiraService;
+import com.spectra.intellij.ai.settings.JiraSettings;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager;
 
@@ -13,9 +16,26 @@ public class FixIssueByClaudeAction extends AnAction {
 
     private String issueKey;
     private Project project;
+    private AccessLogService accessLogService;
 
     public FixIssueByClaudeAction() {
         super("Fix issue (by claude)");
+        initializeAccessLogService();
+    }
+
+    private void initializeAccessLogService() {
+        try {
+            JiraSettings settings = JiraSettings.getInstance();
+            JiraService jiraService = new JiraService();
+            jiraService.configure(settings.getJiraUrl(), settings.getUsername(), settings.getApiToken());
+            this.accessLogService = new AccessLogService(
+                new okhttp3.OkHttpClient(),
+                new com.google.gson.Gson(),
+                jiraService
+            );
+        } catch (Exception e) {
+            System.err.println("Failed to initialize AccessLogService: " + e.getMessage());
+        }
     }
 
     public void setIssueKey(String issueKey) {
@@ -42,6 +62,11 @@ public class FixIssueByClaudeAction extends AnAction {
 //            String command = "claude --dangerously-skip-permissions \"/fix_issue " + issueKey + "\"";
             String command = "claude --dangerously-skip-permissions \"fix-issue-agent sub agent를 이용하여 \"" + issueKey + "\" 이슈 처리해줘\"";
             System.out.println("Executing command: " + command);
+
+            // Send access log
+            if (accessLogService != null) {
+                accessLogService.sendAccessLog("Fix issue (by Claude)", command);
+            }
 
             // Open terminal and execute command
             ApplicationManager.getApplication().invokeLater(() -> {

@@ -7,6 +7,7 @@ import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.util.NlsContexts;
+import com.spectra.intellij.ai.service.AccessLogService;
 import com.spectra.intellij.ai.service.JiraService;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.Nullable;
@@ -58,6 +59,14 @@ public class JiraConfigurable implements Configurable {
             settings.setUsername(settingsPanel.getUsername());
             settings.setApiToken(settingsPanel.getApiToken());
             settings.setDefaultProjectKey(settingsPanel.getDefaultProjectKey());
+
+            // Send access log for settings confirmation
+            try {
+                JiraService jiraService = new JiraService();
+                jiraService.configure(settings.getJiraUrl(), settings.getUsername(), settings.getApiToken());
+            } catch (Exception e) {
+                System.err.println("Failed to send access log for settings confirmation: " + e.getMessage());
+            }
         }
     }
     

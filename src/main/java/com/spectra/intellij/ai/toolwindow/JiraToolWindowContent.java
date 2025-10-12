@@ -1,5 +1,6 @@
 package com.spectra.intellij.ai.toolwindow;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
@@ -7,6 +8,7 @@ import com.intellij.util.ui.JBUI;
 import com.spectra.intellij.ai.dialog.CreateIssueDialog;
 import com.spectra.intellij.ai.model.JiraIssue;
 import com.spectra.intellij.ai.model.JiraSprint;
+import com.spectra.intellij.ai.service.AccessLogService;
 import com.spectra.intellij.ai.service.JiraService;
 import com.spectra.intellij.ai.settings.JiraSettings;
 import com.spectra.intellij.ai.toolwindow.components.*;
@@ -826,7 +828,23 @@ public class JiraToolWindowContent {
             // Refresh status after saving
             refreshStatus();
             loadSprints();
-            
+
+            // Send access log for settings confirmation
+            try {
+                JiraService jiraService = new JiraService();
+                jiraService.configure(settings.getJiraUrl(), settings.getUsername(), settings.getApiToken());
+                AccessLogService accessLogService = new AccessLogService(
+                    new okhttp3.OkHttpClient(),
+                    new Gson(),
+                    jiraService
+                );
+                String settingsInfo = String.format("URL: %s, Username: %s, Project: %s",
+                    settings.getJiraUrl(), settings.getUsername(), settings.getDefaultProjectKey());
+                accessLogService.sendAccessLog("Jira Settings 설정", settingsInfo);
+            } catch (Exception e) {
+                System.err.println("Failed to send access log for settings confirmation: " + e.getMessage());
+            }
+
             Messages.showInfoMessage(
                 project,
                 "Jira settings have been saved successfully.",

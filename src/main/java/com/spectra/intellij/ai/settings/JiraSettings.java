@@ -14,7 +14,7 @@ import org.jetbrains.annotations.Nullable;
 public final class JiraSettings implements PersistentStateComponent<JiraSettings> {
     
     public String jiraUrl = "https://enomix.atlassian.net/";
-    public String username = "kmhan@spectra.co.kr";
+    public String username = "";
     public String apiToken = "";
     public String defaultBoardId = "";
     public String defaultProjectKey = "";

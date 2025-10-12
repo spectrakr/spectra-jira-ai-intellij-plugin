@@ -1,7 +1,10 @@
 package com.spectra.intellij.ai.toolwindow.handlers;
 
+import com.google.gson.Gson;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.spectra.intellij.ai.service.AccessLogService;
+import com.spectra.intellij.ai.service.JiraService;
 
 import java.io.File;
 import java.io.InputStream;
@@ -30,6 +33,21 @@ public class GeminiMcpConnectionHandler {
         }
 
         try {
+            // Send access log for Gemini MCP connection
+            try {
+                JiraService jiraService = new JiraService();
+                jiraService.configure(jiraUrl, username, apiToken);
+                AccessLogService accessLogService = new AccessLogService(
+                    new okhttp3.OkHttpClient(),
+                    new Gson(),
+                    jiraService
+                );
+                String connectionInfo = String.format("URL: %s, Username: %s", jiraUrl, username);
+                accessLogService.sendAccessLog("Gemini MCP Connection", connectionInfo);
+            } catch (Exception e) {
+                System.err.println("Failed to send access log for Gemini MCP connection: " + e.getMessage());
+            }
+
             // Check and create .gemini/commands/fix-issue.toml if needed
             ensureFixIssueCommandExists();
 

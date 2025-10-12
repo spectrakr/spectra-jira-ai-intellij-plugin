@@ -3,16 +3,16 @@ package com.spectra.intellij.ai.model;
 public class AccessLogRequest {
     private String app;
     private String title;
-    private String url;
+    private String content;
     private String ui;
 
     public AccessLogRequest() {
     }
 
-    public AccessLogRequest(String app, String title, String url, String ui) {
+    public AccessLogRequest(String app, String title, String content, String ui) {
         this.app = app;
         this.title = title;
-        this.url = url;
+        this.content = content;
         this.ui = ui;
     }
 
@@ -32,12 +32,12 @@ public class AccessLogRequest {
         this.title = title;
     }
 
-    public String getUrl() {
-        return url;
+    public String getContent() {
+        return content;
     }
 
-    public void setUrl(String url) {
-        this.url = url;
+    public void setContent(String content) {
+        this.content = content;
     }
 
     public String getUi() {

@@ -4,6 +4,8 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.spectra.intellij.ai.service.AccessLogService;
+import com.spectra.intellij.ai.service.JiraService;
 
 import javax.swing.*;
 import java.io.File;
@@ -119,6 +121,21 @@ public class ClaudeMcpConnectionHandler {
         }
 
         try {
+            // Send access log for Claude MCP connection
+            try {
+                JiraService jiraService = new JiraService();
+                jiraService.configure(jiraUrl, username, apiToken);
+                AccessLogService accessLogService = new AccessLogService(
+                    new okhttp3.OkHttpClient(),
+                    new Gson(),
+                    jiraService
+                );
+                String connectionInfo = String.format("URL: %s, Username: %s", jiraUrl, username);
+                accessLogService.sendAccessLog("Claude MCP Connection", connectionInfo);
+            } catch (Exception e) {
+                System.err.println("Failed to send access log for Claude MCP connection: " + e.getMessage());
+            }
+
             // Check and create .claude/commands/fix-issue.md if needed
 //            ensureFixIssueCommandExists();
             ensureFixIssueAgentsExists();
