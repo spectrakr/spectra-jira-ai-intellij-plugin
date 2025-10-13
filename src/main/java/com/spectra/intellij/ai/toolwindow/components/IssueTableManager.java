@@ -14,7 +14,10 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
@@ -202,8 +205,45 @@ public class IssueTableManager {
                         }
                     });
 
-                    // Add separator
+                    // Create "Copy Link" menu item
+                    JMenuItem copyLinkMenuItem = new JMenuItem("링크 복사");
+                    copyLinkMenuItem.addActionListener(ev -> {
+                        try {
+                            JiraSettings settings = JiraSettings.getInstance();
+                            String jiraUrl = settings.getJiraUrl();
+                            if (!jiraUrl.endsWith("/")) {
+                                jiraUrl += "/";
+                            }
+                            String issueUrl = jiraUrl + "browse/" + issueKey;
+
+                            java.awt.datatransfer.StringSelection stringSelection =
+                                new java.awt.datatransfer.StringSelection(issueUrl);
+                            java.awt.Toolkit.getDefaultToolkit()
+                                .getSystemClipboard()
+                                .setContents(stringSelection, null);
+                        } catch (Exception ex) {
+                            com.intellij.openapi.diagnostic.Logger.getInstance(IssueTableManager.class).error(ex);
+                        }
+                    });
+
+                    // Create "Copy ID" menu item
+                    JMenuItem copyIdMenuItem = new JMenuItem("아이디 복사 (" + issueKey + ")");
+                    copyIdMenuItem.addActionListener(ev -> {
+                        try {
+                            java.awt.datatransfer.StringSelection stringSelection =
+                                new java.awt.datatransfer.StringSelection(issueKey);
+                            java.awt.Toolkit.getDefaultToolkit()
+                                .getSystemClipboard()
+                                .setContents(stringSelection, null);
+                        } catch (Exception ex) {
+                            com.intellij.openapi.diagnostic.Logger.getInstance(IssueTableManager.class).error(ex);
+                        }
+                    });
+
+                    // Add menu items
                     popupMenu.add(openInBrowserMenuItem);
+                    popupMenu.add(copyLinkMenuItem);
+                    popupMenu.add(copyIdMenuItem);
                     popupMenu.addSeparator();
 
                     // Create menu items with proper spacing
@@ -299,32 +339,32 @@ public class IssueTableManager {
         issueTableModel.setRowCount(0);
         priorityIconUrlMap.clear(); // Clear priority icon URL map
         IssueTableCellRenderer renderer = (IssueTableCellRenderer) issueTable.getColumnModel().getColumn(0).getCellRenderer();
-        
+
         int displayRow = 0;
         for (int i = 0; i < originalIssueTableModel.getRowCount(); i++) {
             String issueType = (String) originalIssueTableModel.getValueAt(i, 6); // IssueType column
             String assignee = (String) originalIssueTableModel.getValueAt(i, 5);  // Assignee column
             String status = (String) originalIssueTableModel.getValueAt(i, 2);    // Status column
-            
+
             // Apply filters with null checks
             boolean passesFilter = true;
-            
+
             if (selectedIssueType != null && !"All".equals(selectedIssueType) && !selectedIssueType.equals(issueType)) {
                 passesFilter = false;
             }
-            
+
             if (selectedAssignee != null && !"All".equals(selectedAssignee) && !selectedAssignee.equals(assignee)) {
                 passesFilter = false;
             }
-            
+
             if (selectedStatus != null && !"All".equals(selectedStatus) && !selectedStatus.equals(status)) {
                 passesFilter = false;
             }
-            
+
             if (passesFilter) {
                 // Set issue type for renderer
                 renderer.setIssueTypeForRow(displayRow, issueType);
-                
+
                 // Add row to display table (exclude IssueType column)
                 issueTableModel.addRow(new Object[]{
                     originalIssueTableModel.getValueAt(i, 0), // Key

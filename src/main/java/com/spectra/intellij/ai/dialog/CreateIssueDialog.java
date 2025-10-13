@@ -55,6 +55,7 @@ public class CreateIssueDialog extends DialogWrapper {
         init();
         loadData();
         loadCurrentUser(); // Load and pre-select current user as assignee
+        loadRecentEpic(); // Load and pre-select recent epic if available
     }
     
     @Override
@@ -266,7 +267,10 @@ public class CreateIssueDialog extends DialogWrapper {
                 selectedSprint != null ? selectedSprint.getId() : "",
                 selectedSprint != null ? selectedSprint.getName() : "",
                 issue.getIssueTypeId(),
-                (String) issueTypeComboBox.getSelectedItem()
+                (String) issueTypeComboBox.getSelectedItem(),
+                selectedEpic != null ? selectedEpic.getKey() : "",
+                selectedEpic != null ? selectedEpic.getSummary() : "",
+                selectedAssignee
             );
             
             super.doOKAction();
@@ -648,23 +652,65 @@ public class CreateIssueDialog extends DialogWrapper {
     }
 
     private void loadCurrentUser() {
-        jiraService.getCurrentUserAsync()
-            .thenAccept(currentUser -> {
-                SwingUtilities.invokeLater(() -> {
-                    if (currentUser != null && currentUser.has("displayName")) {
-                        String displayName = currentUser.get("displayName").getAsString();
-                        selectedAssignee = displayName;
-                        assigneeDisplayLabel.setText(displayName);
+        // Check if there's a recent assignee selection
+        RecentJiraSettings recentSettings = RecentJiraSettings.getInstance();
+        String lastAssignee = recentSettings.getLastUsedAssignee();
+
+        if (!lastAssignee.isEmpty()) {
+            // Use recent assignee
+            selectedAssignee = lastAssignee;
+            assigneeDisplayLabel.setText(lastAssignee);
+        } else {
+            // Fall back to current user
+            jiraService.getCurrentUserAsync()
+                .thenAccept(currentUser -> {
+                    SwingUtilities.invokeLater(() -> {
+                        if (currentUser != null && currentUser.has("displayName")) {
+                            String displayName = currentUser.get("displayName").getAsString();
+                            selectedAssignee = displayName;
+                            assigneeDisplayLabel.setText(displayName);
+                        }
+                    });
+                })
+                .exceptionally(throwable -> {
+                    SwingUtilities.invokeLater(() -> {
+                        // Silently fail - user can still manually select assignee
+                        System.err.println("Warning: Failed to load current user: " + throwable.getMessage());
+                    });
+                    return null;
+                });
+        }
+    }
+
+    private void loadRecentEpic() {
+        // Check if there's a recent epic selection
+        RecentJiraSettings recentSettings = RecentJiraSettings.getInstance();
+        String lastEpicKey = recentSettings.getLastUsedEpicKey();
+        String lastEpicName = recentSettings.getLastUsedEpicName();
+
+        if (!lastEpicKey.isEmpty() && !lastEpicName.isEmpty()) {
+            // Load all epics to verify the recent epic still exists
+            jiraService.getEpicListAsync()
+                .thenAccept(epics -> SwingUtilities.invokeLater(() -> {
+                    // Find the epic with matching key
+                    for (JiraEpic epic : epics) {
+                        if (lastEpicKey.equals(epic.getKey())) {
+                            selectedEpic = epic;
+                            epicDisplayLabel.setText(epic.getKey() + " - " + epic.getSummary());
+                            return;
+                        }
                     }
+                    // If epic not found, it might have been deleted or archived
+                    // Keep the default "상위항목 선택" text
+                }))
+                .exceptionally(throwable -> {
+                    SwingUtilities.invokeLater(() -> {
+                        // Silently fail - user can still manually select epic
+                        System.err.println("Warning: Failed to load recent epic: " + throwable.getMessage());
+                    });
+                    return null;
                 });
-            })
-            .exceptionally(throwable -> {
-                SwingUtilities.invokeLater(() -> {
-                    // Silently fail - user can still manually select assignee
-                    System.err.println("Warning: Failed to load current user: " + throwable.getMessage());
-                });
-                return null;
-            });
+        }
     }
 
     private void performAIRecommendation() {

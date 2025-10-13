@@ -22,7 +22,7 @@ public class FilterPanel extends JPanel {
     private JComboBox<String> assigneeFilter;
     private JComboBox<String> statusFilter;
     private JButton createIssueButton;
-    
+
     private Consumer<Void> onFilterChanged;
     private Consumer<Void> onRefresh;
     private Consumer<Void> onCreateIssue;
@@ -114,7 +114,7 @@ public class FilterPanel extends JPanel {
         ActionListener[] issueTypeListeners = issueTypeFilter.getActionListeners();
         ActionListener[] assigneeListeners = assigneeFilter.getActionListeners();
         ActionListener[] statusListeners = statusFilter.getActionListeners();
-        
+
         // Remove listeners
         for (ActionListener listener : issueTypeListeners) {
             issueTypeFilter.removeActionListener(listener);
@@ -125,17 +125,17 @@ public class FilterPanel extends JPanel {
         for (ActionListener listener : statusListeners) {
             statusFilter.removeActionListener(listener);
         }
-        
+
         // Clear and reset items
         issueTypeFilter.removeAllItems();
         issueTypeFilter.addItem(ISSUE_TYPE_ALL_LABEL);
-        
+
         assigneeFilter.removeAllItems();
         assigneeFilter.addItem(ASSIGNEE_ALL_LABEL);
-        
+
         statusFilter.removeAllItems();
         statusFilter.addItem(STATUS_ALL_LABEL);
-        
+
         // Re-add listeners
         for (ActionListener listener : issueTypeListeners) {
             issueTypeFilter.addActionListener(listener);

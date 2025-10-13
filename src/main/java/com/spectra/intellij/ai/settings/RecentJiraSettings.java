@@ -21,6 +21,9 @@ public final class RecentJiraSettings implements PersistentStateComponent<Recent
     public String lastUsedSprintName = "";
     public String lastUsedIssueTypeId = "";
     public String lastUsedIssueTypeName = "";
+    public String lastUsedEpicKey = "";
+    public String lastUsedEpicName = "";
+    public String lastUsedAssignee = "";
     
     public static RecentJiraSettings getInstance() {
         return ApplicationManager.getApplication().getService(RecentJiraSettings.class);
@@ -36,13 +39,17 @@ public final class RecentJiraSettings implements PersistentStateComponent<Recent
         XmlSerializerUtil.copyBean(state, this);
     }
     
-    public void updateRecentValues(String priority, String sprintId, String sprintName, 
-                                   String issueTypeId, String issueTypeName) {
+    public void updateRecentValues(String priority, String sprintId, String sprintName,
+                                   String issueTypeId, String issueTypeName,
+                                   String epicKey, String epicName, String assignee) {
         this.lastUsedPriority = priority != null ? priority : "";
         this.lastUsedSprintId = sprintId != null ? sprintId : "";
         this.lastUsedSprintName = sprintName != null ? sprintName : "";
         this.lastUsedIssueTypeId = issueTypeId != null ? issueTypeId : "";
         this.lastUsedIssueTypeName = issueTypeName != null ? issueTypeName : "";
+        this.lastUsedEpicKey = epicKey != null ? epicKey : "";
+        this.lastUsedEpicName = epicName != null ? epicName : "";
+        this.lastUsedAssignee = assignee != null ? assignee : "";
     }
     
     public String getLastUsedPriority() {
@@ -63,5 +70,17 @@ public final class RecentJiraSettings implements PersistentStateComponent<Recent
     
     public String getLastUsedIssueTypeName() {
         return lastUsedIssueTypeName != null ? lastUsedIssueTypeName : "";
+    }
+
+    public String getLastUsedEpicKey() {
+        return lastUsedEpicKey != null ? lastUsedEpicKey : "";
+    }
+
+    public String getLastUsedEpicName() {
+        return lastUsedEpicName != null ? lastUsedEpicName : "";
+    }
+
+    public String getLastUsedAssignee() {
+        return lastUsedAssignee != null ? lastUsedAssignee : "";
     }
 }

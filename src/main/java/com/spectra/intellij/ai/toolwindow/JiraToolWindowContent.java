@@ -280,7 +280,7 @@ public class JiraToolWindowContent {
         String selectedIssueType = filterPanel.getSelectedIssueType();
         String selectedAssignee = filterPanel.getSelectedAssignee();
         String selectedStatus = filterPanel.getSelectedStatus();
-        
+
         issueTableManager.applyFilters(selectedIssueType, selectedAssignee, selectedStatus);
         updateStatus("Filtered " + issueTableManager.getIssueCount() + " issues");
     }
