@@ -27,11 +27,24 @@ public class ClaudeMcpConnectionHandler {
     public boolean checkMcpConnection() {
         try {
             String basePath = project.getBasePath();
-            if (basePath == null) {
-                return false;
-            }
+            boolean checkMcpProject = checkMcpConnectionForFile(basePath, ".mcp.json");
 
-            Path mcpJsonPath = Paths.get(basePath, ".mcp.json");
+            String userHome = System.getProperty("user.home");
+            boolean checkMcpUser = checkMcpConnectionForFile(userHome, ".claude.json");
+
+            System.out.println("___ checkMcpProject: " + checkMcpProject);
+            System.out.println("___ checkMcpUser: " + checkMcpUser);
+
+            return checkMcpProject || checkMcpUser;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean checkMcpConnectionForFile(String path, String fileName) {
+        try {
+//            Path mcpJsonPath = Paths.get(basePath, ".mcp.json");
+            Path mcpJsonPath = Paths.get(path, fileName);
             File mcpJsonFile = mcpJsonPath.toFile();
 
             if (!mcpJsonFile.exists()) {
@@ -386,6 +399,39 @@ public class ClaudeMcpConnectionHandler {
             scrollPane.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
 
             mainPanel.add(scrollPane);
+            mainPanel.add(Box.createVerticalStrut(10));
+
+            // Create toggle button for scope information
+            JButton toggleButton = new JButton("user scope로 변경방법");
+            toggleButton.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
+
+            // Create additional description panel for scope information (initially hidden)
+            JPanel additionalDescPanel = new JPanel();
+            additionalDescPanel.setLayout(new BoxLayout(additionalDescPanel, BoxLayout.Y_AXIS));
+            additionalDescPanel.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
+            additionalDescPanel.setVisible(false);
+
+            JLabel scopeLabel1 = new JLabel("기본 연결은 project scope입니다. user scope으로 연결하려면 아래와 같이 수정하여 실행하세요.");
+            JLabel scopeLabel2 = new JLabel("1. jira mcp 연결: claude mcp add-json ...의 마지막에 --scope project를 user로 변경 (--scope user)");
+            JLabel scopeLabel3 = new JLabel("2. sub agent 생성: <project>/.claude/agents/fix-issue.md 파일을 <user-home>/.claude/agents/ 하위에 복사");
+
+            additionalDescPanel.add(Box.createVerticalStrut(5));
+            additionalDescPanel.add(scopeLabel1);
+            additionalDescPanel.add(Box.createVerticalStrut(5));
+            additionalDescPanel.add(scopeLabel2);
+            additionalDescPanel.add(Box.createVerticalStrut(3));
+            additionalDescPanel.add(scopeLabel3);
+
+            // Add toggle functionality
+            toggleButton.addActionListener(e -> {
+                boolean isVisible = additionalDescPanel.isVisible();
+                additionalDescPanel.setVisible(!isVisible);
+                toggleButton.setText(isVisible ? "project scope 변경방법" : "project scope 변경방법 (숨기기)");
+                SwingUtilities.getWindowAncestor(mainPanel).pack();
+            });
+
+            mainPanel.add(toggleButton);
+            mainPanel.add(additionalDescPanel);
 
             JOptionPane.showConfirmDialog(
                 null,
