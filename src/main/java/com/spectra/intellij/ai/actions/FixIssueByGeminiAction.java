@@ -58,9 +58,15 @@ public class FixIssueByGeminiAction extends AnAction {
         }
 
         try {
-            // Execute the command in terminal
-//            String command = "gemini --dangerously-skip-permissions \"/fix_issue " + issueKey + "\"";
-            String command = "gemini --yolo \"/fix-issue " + issueKey + "\"";
+            // Get the configured Gemini command from settings
+            JiraSettings settings = JiraSettings.getInstance();
+            String commandTemplate = settings.getGeminiCommand();
+            if (commandTemplate == null || commandTemplate.trim().isEmpty()) {
+                commandTemplate = "gemini --yolo \"/fix-issue $issueKey\"";
+            }
+
+            // Replace $issueKey variable with actual issue key
+            String command = commandTemplate.replace("$issueKey", issueKey);
             System.out.println("Executing command: " + command);
 
             if (accessLogService != null) {

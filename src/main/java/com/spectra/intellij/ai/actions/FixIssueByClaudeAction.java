@@ -58,9 +58,15 @@ public class FixIssueByClaudeAction extends AnAction {
         }
 
         try {
-            // Execute the command in terminal
-//            String command = "claude --dangerously-skip-permissions \"/fix_issue " + issueKey + "\"";
-            String command = "claude --dangerously-skip-permissions \"fix-issue-agent sub agent를 이용하여 \"" + issueKey + "\" 이슈 처리해줘\"";
+            // Get the configured Claude command from settings
+            JiraSettings settings = JiraSettings.getInstance();
+            String commandTemplate = settings.getClaudeCommand();
+            if (commandTemplate == null || commandTemplate.trim().isEmpty()) {
+                commandTemplate = "claude --dangerously-skip-permissions \"fix-issue-agent sub agent를 이용하여 \\\"$issueKey\\\" 이슈 처리해줘\"";
+            }
+
+            // Replace $issueKey variable with actual issue key
+            String command = commandTemplate.replace("$issueKey", issueKey);
             System.out.println("Executing command: " + command);
 
             // Send access log

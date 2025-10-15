@@ -13,10 +13,13 @@ import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.InputStream;
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.awt.Desktop;
 import java.net.URI;
 import java.time.LocalDateTime;
@@ -48,7 +51,9 @@ public class JiraConfigurable implements Configurable {
         return !settingsPanel.getJiraUrl().equals(settings.getJiraUrl()) ||
                !settingsPanel.getUsername().equals(settings.getUsername()) ||
                !settingsPanel.getApiToken().equals(settings.getApiToken()) ||
-               !settingsPanel.getDefaultProjectKey().equals(settings.getDefaultProjectKey());
+               !settingsPanel.getDefaultProjectKey().equals(settings.getDefaultProjectKey()) ||
+               !settingsPanel.getClaudeCommand().equals(settings.getClaudeCommand()) ||
+               !settingsPanel.getGeminiCommand().equals(settings.getGeminiCommand());
     }
     
     @Override
@@ -59,6 +64,8 @@ public class JiraConfigurable implements Configurable {
             settings.setUsername(settingsPanel.getUsername());
             settings.setApiToken(settingsPanel.getApiToken());
             settings.setDefaultProjectKey(settingsPanel.getDefaultProjectKey());
+            settings.setClaudeCommand(settingsPanel.getClaudeCommand());
+            settings.setGeminiCommand(settingsPanel.getGeminiCommand());
 
             // Send access log for settings confirmation
             try {
@@ -78,6 +85,8 @@ public class JiraConfigurable implements Configurable {
             settingsPanel.setUsername(settings.getUsername());
             settingsPanel.setApiToken(settings.getApiToken());
             settingsPanel.setDefaultProjectKey(settings.getDefaultProjectKey());
+            settingsPanel.setClaudeCommand(settings.getClaudeCommand());
+            settingsPanel.setGeminiCommand(settings.getGeminiCommand());
         }
     }
     
@@ -92,6 +101,8 @@ public class JiraConfigurable implements Configurable {
         private JTextField usernameField;
         private JPasswordField apiTokenField;
         private JTextField defaultProjectKeyField;
+        private JTextField claudeCommandField;
+        private JTextField geminiCommandField;
         
         public JiraSettingsPanel() {
             createPanel();
@@ -155,12 +166,69 @@ public class JiraConfigurable implements Configurable {
             projectPanel.add(exampleLabel, BorderLayout.CENTER);
             panel.add(projectPanel, gbc);
 
+            // Jira MCP Section Header
+            gbc.gridx = 0; gbc.gridy = 4; gbc.gridwidth = 2; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
+            gbc.insets = new Insets(15, 5, 5, 5); // Add extra top margin
+            JLabel mcpHeaderLabel = new JLabel("Jira MCP");
+            mcpHeaderLabel.setFont(mcpHeaderLabel.getFont().deriveFont(Font.BOLD, 14f));
+            panel.add(mcpHeaderLabel, gbc);
+
+            // Claude Command
+            gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 1; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
+            gbc.insets = new Insets(5, 5, 5, 5); // Reset insets
+            panel.add(new JLabel("Claude 실행 명령어:"), gbc);
+
+            // Command field and example panel
+            gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
+            JPanel commandPanel = new JPanel(new BorderLayout(5, 0));
+
+            // Command field with reset button
+            JPanel commandFieldPanel = new JPanel(new BorderLayout(5, 0));
+            claudeCommandField = new JTextField(30);
+            JButton resetClaudeButton = new JButton("초기화");
+            resetClaudeButton.addActionListener(e -> {
+                claudeCommandField.setText("claude --dangerously-skip-permissions \"fix-issue-agent sub agent를 이용하여 \\\"$issueKey\\\" 이슈 처리해줘\"");
+            });
+            commandFieldPanel.add(claudeCommandField, BorderLayout.CENTER);
+            commandFieldPanel.add(resetClaudeButton, BorderLayout.EAST);
+
+            JLabel commandExampleLabel = new JLabel("예) $issueKey 변수 사용 가능");
+            commandExampleLabel.setForeground(Color.GRAY);
+            commandPanel.add(commandFieldPanel, BorderLayout.CENTER);
+            commandPanel.add(commandExampleLabel, BorderLayout.SOUTH);
+            panel.add(commandPanel, gbc);
+
+            // Gemini Command
+            gbc.gridx = 0; gbc.gridy = 6; gbc.gridwidth = 1; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
+            gbc.insets = new Insets(5, 5, 5, 5);
+            panel.add(new JLabel("Gemini 실행 명령어:"), gbc);
+
+            // Gemini command field and example panel
+            gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
+            JPanel geminiCommandPanel = new JPanel(new BorderLayout(5, 0));
+
+            // Gemini command field with reset button
+            JPanel geminiCommandFieldPanel = new JPanel(new BorderLayout(5, 0));
+            geminiCommandField = new JTextField(30);
+            JButton resetGeminiButton = new JButton("초기화");
+            resetGeminiButton.addActionListener(e -> {
+                geminiCommandField.setText("gemini --yolo \"/fix-issue $issueKey\"");
+            });
+            geminiCommandFieldPanel.add(geminiCommandField, BorderLayout.CENTER);
+            geminiCommandFieldPanel.add(resetGeminiButton, BorderLayout.EAST);
+
+            JLabel geminiCommandExampleLabel = new JLabel("예) $issueKey 변수 사용 가능");
+            geminiCommandExampleLabel.setForeground(Color.GRAY);
+            geminiCommandPanel.add(geminiCommandFieldPanel, BorderLayout.CENTER);
+            geminiCommandPanel.add(geminiCommandExampleLabel, BorderLayout.SOUTH);
+            panel.add(geminiCommandPanel, gbc);
+
             // Buttons Panel
-            gbc.gridx = 0; gbc.gridy = 4; gbc.gridwidth = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0; gbc.weighty = 0;
+            gbc.gridx = 0; gbc.gridy = 7; gbc.gridwidth = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0; gbc.weighty = 0;
             gbc.anchor = GridBagConstraints.CENTER;
-            
+
             JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
-            
+
             JButton checkVersionButton = new JButton("Check Version");
             checkVersionButton.addActionListener(new ActionListener() {
                 @Override
@@ -168,7 +236,7 @@ public class JiraConfigurable implements Configurable {
                     showVersionInfo();
                 }
             });
-            
+
             JButton setupAutoUpdateButton = new JButton("자동 업데이트 설정");
             setupAutoUpdateButton.addActionListener(new ActionListener() {
                 @Override
@@ -176,13 +244,13 @@ public class JiraConfigurable implements Configurable {
                     showAutoUpdateGuide();
                 }
             });
-            
+
             buttonsPanel.add(checkVersionButton);
             buttonsPanel.add(setupAutoUpdateButton);
             panel.add(buttonsPanel, gbc);
-            
+
             // Fill remaining space
-            gbc.gridx = 0; gbc.gridy = 6; gbc.gridwidth = 2; gbc.weighty = 1.0;
+            gbc.gridx = 0; gbc.gridy = 8; gbc.gridwidth = 2; gbc.weighty = 1.0;
             panel.add(new JPanel(), gbc);
         }
         
@@ -222,7 +290,23 @@ public class JiraConfigurable implements Configurable {
         public void setDefaultProjectKey(String defaultProjectKey) {
             defaultProjectKeyField.setText(defaultProjectKey);
         }
-        
+
+        public String getClaudeCommand() {
+            return claudeCommandField.getText().trim();
+        }
+
+        public void setClaudeCommand(String claudeCommand) {
+            claudeCommandField.setText(claudeCommand);
+        }
+
+        public String getGeminiCommand() {
+            return geminiCommandField.getText().trim();
+        }
+
+        public void setGeminiCommand(String geminiCommand) {
+            geminiCommandField.setText(geminiCommand);
+        }
+
         private void showVersionInfo() {
             String version = getPluginVersion();
             String buildDate = getBuildDate();
@@ -377,6 +461,53 @@ public class JiraConfigurable implements Configurable {
                 message.toString(),
                 "자동 업데이트 설정 가이드"
             );
+        }
+
+        private void downloadJiraMcp() {
+            try {
+                // Load jira-mcp.js from resources
+                InputStream resourceStream = getClass().getClassLoader().getResourceAsStream("jiramcp/jira-mcp.js");
+
+                if (resourceStream == null) {
+                    Messages.showErrorDialog(
+                        "jira-mcp.js 파일을 찾을 수 없습니다.\n플러그인 리소스에서 파일을 로드할 수 없습니다.",
+                        "파일 로드 실패"
+                    );
+                    return;
+                }
+
+                // Create file chooser with default filename
+                JFileChooser fileChooser = new JFileChooser();
+                fileChooser.setDialogTitle("jira-mcp.js 저장 위치 선택");
+                fileChooser.setSelectedFile(new File("jira-mcp.js"));
+                FileNameExtensionFilter filter = new FileNameExtensionFilter("JavaScript Files (*.js)", "js");
+                fileChooser.setFileFilter(filter);
+
+                int userSelection = fileChooser.showSaveDialog(panel);
+
+                if (userSelection == JFileChooser.APPROVE_OPTION) {
+                    File fileToSave = fileChooser.getSelectedFile();
+
+                    // Ensure .js extension
+                    if (!fileToSave.getName().endsWith(".js")) {
+                        fileToSave = new File(fileToSave.getAbsolutePath() + ".js");
+                    }
+
+                    // Copy resource to selected file
+                    Files.copy(resourceStream, fileToSave.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    resourceStream.close();
+
+                    Messages.showInfoMessage(
+                        "jira-mcp.js 파일이 성공적으로 다운로드되었습니다.\n\n저장 위치: " + fileToSave.getAbsolutePath(),
+                        "다운로드 완료"
+                    );
+                }
+            } catch (IOException e) {
+                Messages.showErrorDialog(
+                    "파일 다운로드 중 오류가 발생했습니다:\n" + e.getMessage(),
+                    "다운로드 실패"
+                );
+            }
         }
 
     }

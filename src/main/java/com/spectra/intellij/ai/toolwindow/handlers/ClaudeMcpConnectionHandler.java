@@ -24,6 +24,8 @@ public class ClaudeMcpConnectionHandler {
         this.project = project;
     }
 
+    public static final String JIRA_MCP_NAME = "spectra-jira";
+
     public boolean checkMcpConnection() {
         try {
             String basePath = project.getBasePath();
@@ -31,9 +33,6 @@ public class ClaudeMcpConnectionHandler {
 
             String userHome = System.getProperty("user.home");
             boolean checkMcpUser = checkMcpConnectionForFile(userHome, ".claude.json");
-
-            System.out.println("___ checkMcpProject: " + checkMcpProject);
-            System.out.println("___ checkMcpUser: " + checkMcpUser);
 
             return checkMcpProject || checkMcpUser;
         } catch (Exception e) {
@@ -57,7 +56,7 @@ public class ClaudeMcpConnectionHandler {
 
             if (mcpJson != null && mcpJson.has("mcpServers")) {
                 JsonObject mcpServers = mcpJson.getAsJsonObject("mcpServers");
-                return mcpServers.has("atlassian-jira");
+                return mcpServers.has(JIRA_MCP_NAME);
             }
 
             return false;
@@ -67,7 +66,7 @@ public class ClaudeMcpConnectionHandler {
     }
 
     public void removeMcpConnection(Runnable onComplete) {
-        String script = "claude mcp remove atlassian-jira";
+        String script = "claude mcp remove " + JIRA_MCP_NAME;
 
         // Show script in dialog
         SwingUtilities.invokeLater(() -> {
@@ -93,6 +92,12 @@ public class ClaudeMcpConnectionHandler {
             descriptionPanel.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
 
             mainPanel.add(descriptionPanel);
+            mainPanel.add(Box.createVerticalStrut(5));
+
+            // Add additional info label
+            JLabel additionalInfoLabel = new JLabel("만일 연결 해제가 되지 않을 경우 .mcp.json 또는 .claude.json 에서 직접 " + JIRA_MCP_NAME + "를 제거해주세요.");
+            additionalInfoLabel.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
+            mainPanel.add(additionalInfoLabel);
             mainPanel.add(Box.createVerticalStrut(10));
 
             // Create text area with script
@@ -223,64 +228,6 @@ public class ClaudeMcpConnectionHandler {
         }
     }
 
-    private String getUvxPath() throws Exception {
-        String osName = System.getProperty("os.name").toLowerCase();
-        String command;
-
-        if (osName.contains("win")) {
-            // Windows: use 'where' command
-            command = "where uvx";
-        } else {
-            // macOS/Linux: use 'which' command
-            command = "which uvx";
-        }
-
-        // Log diagnostic information
-        System.out.println("=== UVX Path Detection Debug ===");
-        System.out.println("OS Name: " + osName);
-        System.out.println("Command: " + command);
-        System.out.println("PATH Environment: " + System.getenv("PATH"));
-        System.out.println("User Home: " + System.getProperty("user.home"));
-
-        ProcessBuilder processBuilder = new ProcessBuilder(
-            osName.contains("win") ? new String[]{"cmd", "/c", command} : new String[]{"/bin/sh", "-l", "-c", command}
-        );
-        processBuilder.redirectErrorStream(true);
-
-        Process process = processBuilder.start();
-        StringBuilder output = new StringBuilder();
-
-        try (java.io.BufferedReader reader = new java.io.BufferedReader(
-            new java.io.InputStreamReader(process.getInputStream()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                output.append(line).append("\n");
-            }
-        }
-
-        int exitCode = process.waitFor();
-
-        // Log command results
-        System.out.println("Exit Code: " + exitCode);
-        System.out.println("Command Output: '" + output.toString() + "'");
-        System.out.println("Output Length: " + output.toString().trim().length());
-        System.out.println("================================");
-
-        if (exitCode != 0 || output.toString().trim().isEmpty()) {
-            String errorMsg = "uvx가 설치되어 있지 않습니다.\n\n다음 명령어로 설치해주세요:\npip install uv\n\n" +
-                "Debug Info:\n" +
-                "- OS: " + osName + "\n" +
-                "- Exit Code: " + exitCode + "\n" +
-                "- Output: " + output.toString().trim() + "\n" +
-                "- PATH: " + System.getenv("PATH");
-            throw new Exception(errorMsg);
-        }
-
-        // Get first line (in case multiple paths are returned)
-        String uvxPath = output.toString().trim().split("\n")[0].trim();
-        System.out.println("Found uvx at: " + uvxPath);
-        return uvxPath;
-    }
 
     private void showMcpConnectionScript(String jiraUrl, String username, String apiToken, Runnable onComplete) throws Exception {
         System.out.println("=== MCP Connection Script Generation ===");
@@ -311,8 +258,8 @@ public class ClaudeMcpConnectionHandler {
                 JsonObject mcpServers = mcpJson.getAsJsonObject("mcpServers");
                 System.out.println("mcpServers content: " + mcpServers.toString());
 
-                if (mcpServers.has("atlassian-jira")) {
-                    System.out.println("atlassian-jira already exists in .mcp.json, skipping setup");
+                if (mcpServers.has(JIRA_MCP_NAME)) {
+                    System.out.println(JIRA_MCP_NAME + " already exists in .mcp.json, skipping setup");
                     needsSetup = false;
                 }
             }
@@ -333,10 +280,6 @@ public class ClaudeMcpConnectionHandler {
             return;
         }
 
-        // Get uvx path
-        System.out.println("Getting uvx path...");
-        String uvxPath = getUvxPath();
-        System.out.println("UVX Path found: " + uvxPath);
 
         // Read mcp-add-json.txt template from resources
         System.out.println("Reading MCP template from resources...");
@@ -352,16 +295,19 @@ public class ClaudeMcpConnectionHandler {
 
         // Replace placeholders with actual values
         System.out.println("Replacing template placeholders...");
-        mcpTemplate = mcpTemplate.replace("<uvx_path>", uvxPath);
         mcpTemplate = mcpTemplate.replace("<jira_url>", jiraUrl.endsWith("/") ? jiraUrl : jiraUrl + "/");
         mcpTemplate = mcpTemplate.replace("<email>", username);
         mcpTemplate = mcpTemplate.replace("<access_token>", apiToken);
+
+        // Get the directory where jira-mcp.js should be located
+        String mcpDirectory = basePath + "/.claude/mcp";
+        mcpTemplate = mcpTemplate.replace("<mcp_directory>", mcpDirectory);
 
         // Escape single quotes in JSON content for shell command
         String escapedMcpTemplate = mcpTemplate.replace("'", "'\"'\"'");
 
         // Generate script
-        String script = String.format("claude mcp add-json atlassian-jira '%s' --scope project",
+        String script = String.format("claude mcp add-json " + JIRA_MCP_NAME + " '%s' --scope project",
             escapedMcpTemplate);
 
         // Show script in dialog
@@ -433,7 +379,7 @@ public class ClaudeMcpConnectionHandler {
             mainPanel.add(toggleButton);
             mainPanel.add(additionalDescPanel);
 
-            JOptionPane.showConfirmDialog(
+            int result = JOptionPane.showConfirmDialog(
                 null,
                 mainPanel,
                 "Claude MCP 연결 스크립트",
@@ -441,9 +387,54 @@ public class ClaudeMcpConnectionHandler {
                 JOptionPane.PLAIN_MESSAGE
             );
 
+            // If user clicked OK, copy jira-mcp.js to .claude/mcp/
+            if (result == JOptionPane.OK_OPTION) {
+                try {
+                    copyJiraMcpToClaudeDirectory();
+                    Messages.showInfoMessage(
+                        project,
+                        "jira-mcp.js 파일이 .claude/mcp/jira-mcp.js에 복사되었습니다.\n\n이제 터미널에서 복사한 스크립트를 실행해주세요.",
+                        "파일 복사 완료"
+                    );
+                } catch (Exception ex) {
+                    Messages.showErrorDialog(
+                        project,
+                        "jira-mcp.js 파일 복사 중 오류가 발생했습니다:\n" + ex.getMessage(),
+                        "파일 복사 실패"
+                    );
+                }
+            }
+
             if (onComplete != null) {
                 onComplete.run();
             }
         });
+    }
+
+    private void copyJiraMcpToClaudeDirectory() throws Exception {
+        String basePath = project.getBasePath();
+        if (basePath == null) {
+            throw new Exception("프로젝트 경로를 찾을 수 없습니다.");
+        }
+
+        // Create .claude/mcp directory if it doesn't exist
+        Path mcpDirPath = Paths.get(basePath, ".claude", "mcp");
+        File mcpDir = mcpDirPath.toFile();
+        if (!mcpDir.exists()) {
+            if (!mcpDir.mkdirs()) {
+                throw new Exception(".claude/mcp 디렉토리를 생성할 수 없습니다.");
+            }
+        }
+
+        // Target path for jira-mcp.js
+        Path targetPath = Paths.get(basePath, ".claude", "mcp", "jira-mcp.js");
+
+        // Copy jira-mcp.js from resources to .claude/mcp/
+        try (InputStream sourceStream = getClass().getResourceAsStream("/jiramcp/jira-mcp.js")) {
+            if (sourceStream == null) {
+                throw new Exception("jira-mcp.js 파일을 플러그인 리소스에서 찾을 수 없습니다.");
+            }
+            Files.copy(sourceStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 }

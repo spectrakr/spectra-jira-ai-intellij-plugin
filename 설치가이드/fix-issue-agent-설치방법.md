@@ -16,45 +16,15 @@ Fix issue (by Claude)는 아래와 같은 방식으로 동작합니다.
 >
 > Fix issue (by claude)를 사용하기 위해서는 아래 사항이 설치되어 있어야 합니다.
 >
-> 1. **uvx 설치**: Python 환경 및 패키지 실행을 초간단하게 관리하는 명령어 도구입니다.
+> 1. **node 설치**: jira mcp를 실행하기 위해서는 node가 필요합니다.
 >
 > 2. **gh 설치**: 터미널에서 GitHub 기능(이슈, PR, 리포지토리, 릴리스 등)을 직접 다룰 수 있는 도구입니다.
 
 
 
-#### 1. uvx 설치
+#### 1. node 설치
 
-**Mac에서 설치** (아래 2가지 중 선택)
-
-```bash
-# 1. curl로 설치
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# 2. brew로 설치
-brew install uv
-```
-
-설치된 버전 확인
-
-```bash
-uvx --version
-```
-
-
-
-**Windows에서 설치**
-
-PowerShell을 **관리자 권한으로 실행**한 뒤 아래 입력:
-
-```bash
-irm https://astral.sh/uv/install.ps1 | iex
-```
-
-설치된 버전 확인
-
-```bash
-uvx --version
-```
+https://nodejs.org/en 사이트에 접속해서 node를 설치
 
 
 
@@ -102,7 +72,51 @@ gh 설치 후 gh auth login으로 로그인을 완료합니다.
 
 
 
+> GITHUB_TOKEN은 https://github.com/settings/personal-access-tokens에서 토큰 발급받으시면 됩니다.
 
 
 
+
+
+### 3. Claude 연결
+
+Claude로 Fix Issue Agent를 사용하기 위해서는 Claude 연결 버튼을 눌러 스크립트를 실행해야 합니다. Claude 연결 버튼 클릭 시 표시되는 스크립트를 복사하고 intellij 터미널에서 실행하면 됩니다.
+
+```bash
+claude mcp add-json spectra-jira '{
+    "command": "node",
+    "args": [
+        "<project_home>/jira-mcp.js",
+        "--token", "<jira token>",
+        "--email", "<email>",
+        "--baseUrl", "https://enomix.atlassian.net/"
+    ],
+    "env": {}
+}' --scope project
+```
+
+기본적으로 project scope으로 mcp가 연결이 됩니다.
+
+설정 시 아래의 파일이 생성됩니다.
+
+- <project_home>/.claude/agents/fix-issue.md
+- <project_home>/.claude/mcp/jira-mcp.js
+
+> **user scope로 변경하는 방법**
+>
+> Project scope는 해당 프로젝트 내에서만 실행되는 설정입니다. 만일 사용자 계정 모두 실행되게 하려면 아래와 같이 하시면 됩니다.
+>
+> 1. jira mcp 연결 시 --scope user로 변경하여 실행
+> 2. sub agent 파일을 사용자 계정으로 이동
+>    1. <project_home/.claude/agents/fix-issue.md를 \<user-home>/.claude/agents/fix-issue.md로 이동
+
+
+
+### 4. Gemini 연결
+
+Gemini로 Fix Issue Agent를 사용하기 위해서는 Gemini 연결 버튼을 눌러 스크립트를 실행해야 합니다. Gemini 연결 버튼 클릭 시 표시되는 스크립트를 복사하고 intellij 터미널에서 실행하면 됩니다.
+
+```bash
+gemini mcp add spectra-jira "node" --args "<project_home>/jira-mcp.js" --args "--token" --args "<token>" --args "--email" --args "kmhan@spectra.co.kr" --args "--baseUrl" --args "https://enomix.atlassian.net/" --scope project
+```
 

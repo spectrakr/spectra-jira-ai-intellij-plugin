@@ -18,13 +18,17 @@ import com.spectra.intellij.ai.toolwindow.handlers.CodexMcpConnectionHandler;
 import com.spectra.intellij.ai.toolwindow.handlers.GeminiMcpConnectionHandler;
 
 import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.Desktop;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.io.*;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 
 public class JiraToolWindowContent {
     
@@ -687,28 +691,40 @@ public class JiraToolWindowContent {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = JBUI.insets(5);
         gbc.anchor = GridBagConstraints.WEST;
-        
-        // Jira URL
-        gbc.gridx = 0; gbc.gridy = 0;
-        panel.add(new JLabel("Jira URL:"), gbc);
-        
-        JTextField urlField = new JTextField(settings.getJiraUrl() != null ? settings.getJiraUrl() : "", 30);
-        gbc.gridx = 1; gbc.gridy = 0;
+
+        // Jira 설정 Section Header
+        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
-        panel.add(urlField, gbc);
-        
-        // Email
+        gbc.insets = JBUI.insets(5, 5, 10, 5);
+        JLabel jiraSettingsHeaderLabel = new JLabel("Jira 설정");
+        jiraSettingsHeaderLabel.setFont(jiraSettingsHeaderLabel.getFont().deriveFont(Font.BOLD, 14f));
+        panel.add(jiraSettingsHeaderLabel, gbc);
+
+        // Reset insets and gridwidth for fields
+        gbc.gridwidth = 1;
+        gbc.insets = JBUI.insets(5);
+
+        // Jira URL
         gbc.gridx = 0; gbc.gridy = 1;
-        gbc.fill = GridBagConstraints.NONE;
-        panel.add(new JLabel("Email:"), gbc);
-        
-        JTextField userField = new JTextField(settings.getUsername() != null ? settings.getUsername() : "", 30);
+        panel.add(new JLabel("Jira URL:"), gbc);
+
+        JTextField urlField = new JTextField(settings.getJiraUrl() != null ? settings.getJiraUrl() : "", 30);
         gbc.gridx = 1; gbc.gridy = 1;
         gbc.fill = GridBagConstraints.HORIZONTAL;
-        panel.add(userField, gbc);
-        
-        // API Token
+        panel.add(urlField, gbc);
+
+        // Email
         gbc.gridx = 0; gbc.gridy = 2;
+        gbc.fill = GridBagConstraints.NONE;
+        panel.add(new JLabel("Email:"), gbc);
+
+        JTextField userField = new JTextField(settings.getUsername() != null ? settings.getUsername() : "", 30);
+        gbc.gridx = 1; gbc.gridy = 2;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(userField, gbc);
+
+        // API Token
+        gbc.gridx = 0; gbc.gridy = 3;
         gbc.fill = GridBagConstraints.NONE;
         panel.add(new JLabel("API Token:"), gbc);
         
@@ -728,16 +744,16 @@ public class JiraToolWindowContent {
 
         apiTokenPanel.add(tokenField, BorderLayout.CENTER);
         apiTokenPanel.add(tokenButtonsPanel, BorderLayout.EAST);
-        
-        gbc.gridx = 1; gbc.gridy = 2;
+
+        gbc.gridx = 1; gbc.gridy = 3;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         panel.add(apiTokenPanel, gbc);
-        
+
         // Project ID
-        gbc.gridx = 0; gbc.gridy = 3;
+        gbc.gridx = 0; gbc.gridy = 4;
         gbc.fill = GridBagConstraints.NONE;
         panel.add(new JLabel("Project ID:"), gbc);
-        
+
         // Project ID field and example panel
         JPanel projectPanel = new JPanel(new BorderLayout(5, 0));
         JTextField projectIdField = new JTextField(settings.getDefaultProjectKey() != null ? settings.getDefaultProjectKey() : "", 10);
@@ -746,12 +762,89 @@ public class JiraToolWindowContent {
         projectPanel.add(projectIdField, BorderLayout.WEST);
         projectPanel.add(exampleLabel, BorderLayout.CENTER);
 
-        gbc.gridx = 1; gbc.gridy = 3;
+        gbc.gridx = 1; gbc.gridy = 4;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         panel.add(projectPanel, gbc);
 
+        // Separator line
+        gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 2;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = JBUI.insets(15, 5, 15, 5);
+        JSeparator separator = new JSeparator(JSeparator.HORIZONTAL);
+        panel.add(separator, gbc);
+
+        // Reset insets and gridwidth
+        gbc.gridwidth = 1;
+        gbc.insets = JBUI.insets(5);
+
+        // Fix Issue Agent 설정 Section Header
+        gbc.gridx = 0; gbc.gridy = 6; gbc.gridwidth = 2;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = JBUI.insets(5, 5, 10, 5);
+        JLabel agentSettingsHeaderLabel = new JLabel("Fix Issue Agent 설정");
+        agentSettingsHeaderLabel.setFont(agentSettingsHeaderLabel.getFont().deriveFont(Font.BOLD, 14f));
+        panel.add(agentSettingsHeaderLabel, gbc);
+
+        // Reset insets and gridwidth for fields
+        gbc.gridwidth = 1;
+        gbc.insets = JBUI.insets(5);
+
+        // Claude Command
+        gbc.gridx = 0; gbc.gridy = 7;
+        gbc.fill = GridBagConstraints.NONE;
+        panel.add(new JLabel("Claude 실행 명령어:"), gbc);
+
+        // Claude command field and example panel
+        JPanel commandPanel = new JPanel(new BorderLayout(5, 0));
+
+        // Command field with reset button
+        JPanel commandFieldPanel = new JPanel(new BorderLayout(5, 0));
+        JTextField claudeCommandField = new JTextField(settings.getClaudeCommand() != null ? settings.getClaudeCommand() : "", 30);
+        JButton resetClaudeButton = new JButton("초기화");
+        resetClaudeButton.addActionListener(e -> {
+            claudeCommandField.setText("claude --dangerously-skip-permissions \"fix-issue-agent sub agent를 이용하여 \\\"$issueKey\\\" 이슈 처리해줘\"");
+        });
+        commandFieldPanel.add(claudeCommandField, BorderLayout.CENTER);
+        commandFieldPanel.add(resetClaudeButton, BorderLayout.EAST);
+
+        JLabel commandExampleLabel = new JLabel("예) $issueKey 변수 사용 가능");
+        commandExampleLabel.setForeground(Color.GRAY);
+        commandPanel.add(commandFieldPanel, BorderLayout.CENTER);
+        commandPanel.add(commandExampleLabel, BorderLayout.SOUTH);
+
+        gbc.gridx = 1; gbc.gridy = 7;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(commandPanel, gbc);
+
+        // Gemini Command
+        gbc.gridx = 0; gbc.gridy = 8;
+        gbc.fill = GridBagConstraints.NONE;
+        panel.add(new JLabel("Gemini 실행 명령어:"), gbc);
+
+        // Gemini command field and example panel
+        JPanel geminiCommandPanel = new JPanel(new BorderLayout(5, 0));
+
+        // Gemini command field with reset button
+        JPanel geminiCommandFieldPanel = new JPanel(new BorderLayout(5, 0));
+        JTextField geminiCommandField = new JTextField(settings.getGeminiCommand() != null ? settings.getGeminiCommand() : "", 30);
+        JButton resetGeminiButton = new JButton("초기화");
+        resetGeminiButton.addActionListener(e -> {
+            geminiCommandField.setText("gemini --yolo \"/fix-issue $issueKey\"");
+        });
+        geminiCommandFieldPanel.add(geminiCommandField, BorderLayout.CENTER);
+        geminiCommandFieldPanel.add(resetGeminiButton, BorderLayout.EAST);
+
+        JLabel geminiCommandExampleLabel = new JLabel("예) $issueKey 변수 사용 가능");
+        geminiCommandExampleLabel.setForeground(Color.GRAY);
+        geminiCommandPanel.add(geminiCommandFieldPanel, BorderLayout.CENTER);
+        geminiCommandPanel.add(geminiCommandExampleLabel, BorderLayout.SOUTH);
+
+        gbc.gridx = 1; gbc.gridy = 8;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(geminiCommandPanel, gbc);
+
         // Jira MCP
-        gbc.gridx = 0; gbc.gridy = 4;
+        gbc.gridx = 0; gbc.gridy = 9;
         gbc.fill = GridBagConstraints.NONE;
         panel.add(new JLabel("Jira MCP:"), gbc);
 
@@ -760,6 +853,9 @@ public class JiraToolWindowContent {
 
         // Create button panel that will be updated
         JPanel mcpButtonContainer = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+
+        // jira-mcp download button
+
 
         // Claude connection button
         JButton claudeButton = new JButton(isMcpConnected ? "Claude 연결 해제" : "Claude 연결");
@@ -796,16 +892,42 @@ public class JiraToolWindowContent {
 //            codexMcpConnectionHandler.setupCodexMcp(urlField.getText().trim(), userField.getText().trim(), new String(tokenField.getPassword()).trim())
 //        );
 //
+        // Check if Gemini MCP is already connected
+        boolean isGeminiMcpConnected = geminiMcpConnectionHandler.checkMcpConnection();
+
         // Gemini connection button
-        JButton geminiButton = new JButton("Gemini 연결");
-        geminiButton.addActionListener(e ->
-            geminiMcpConnectionHandler.setupGeminiMcp(urlField.getText().trim(), userField.getText().trim(), new String(tokenField.getPassword()).trim())
-        );
+        JButton geminiButton = new JButton(isGeminiMcpConnected ? "Gemini 연결 해제" : "Gemini 연결");
+        geminiButton.addActionListener(e -> {
+            boolean isConnected = geminiMcpConnectionHandler.checkMcpConnection();
+            if (isConnected) {
+                // Disconnect
+                geminiMcpConnectionHandler.removeMcpConnection(() -> {
+                    // Re-check MCP connection status and update button
+                    SwingUtilities.invokeLater(() -> {
+                        boolean newStatus = geminiMcpConnectionHandler.checkMcpConnection();
+                        geminiButton.setText(newStatus ? "Gemini 연결 해제" : "Gemini 연결");
+                        mcpButtonContainer.revalidate();
+                        mcpButtonContainer.repaint();
+                    });
+                });
+            } else {
+                // Connect
+                geminiMcpConnectionHandler.setupGeminiMcp(urlField.getText().trim(), userField.getText().trim(), new String(tokenField.getPassword()).trim(), () -> {
+                    // Re-check MCP connection status and update button
+                    SwingUtilities.invokeLater(() -> {
+                        boolean newStatus = geminiMcpConnectionHandler.checkMcpConnection();
+                        geminiButton.setText(newStatus ? "Gemini 연결 해제" : "Gemini 연결");
+                        mcpButtonContainer.revalidate();
+                        mcpButtonContainer.repaint();
+                    });
+                });
+            }
+        });
 
         mcpButtonContainer.add(claudeButton);
 //        mcpButtonContainer.add(codexButton);
         mcpButtonContainer.add(geminiButton);
-        gbc.gridx = 1; gbc.gridy = 4;
+        gbc.gridx = 1; gbc.gridy = 9;
         gbc.fill = GridBagConstraints.NONE;
         panel.add(mcpButtonContainer, gbc);
 
@@ -824,6 +946,8 @@ public class JiraToolWindowContent {
             settings.setUsername(userField.getText().trim());
             settings.setApiToken(new String(tokenField.getPassword()).trim());
             settings.setDefaultProjectKey(projectIdField.getText().trim());
+            settings.setClaudeCommand(claudeCommandField.getText().trim());
+            settings.setGeminiCommand(geminiCommandField.getText().trim());
             
             // Refresh status after saving
             refreshStatus();
@@ -853,6 +977,56 @@ public class JiraToolWindowContent {
         }
     }
     
+    private void downloadJiraMcp() {
+        try {
+            // Load jira-mcp.js from resources
+            InputStream resourceStream = getClass().getClassLoader().getResourceAsStream("jiramcp/jira-mcp.js");
+
+            if (resourceStream == null) {
+                Messages.showErrorDialog(
+                    project,
+                    "jira-mcp.js 파일을 찾을 수 없습니다.\n플러그인 리소스에서 파일을 로드할 수 없습니다.",
+                    "파일 로드 실패"
+                );
+                return;
+            }
+
+            // Create file chooser with default filename
+            JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setDialogTitle("jira-mcp.js 저장 위치 선택");
+            fileChooser.setSelectedFile(new File("jira-mcp.js"));
+            FileNameExtensionFilter filter = new FileNameExtensionFilter("JavaScript Files (*.js)", "js");
+            fileChooser.setFileFilter(filter);
+
+            int userSelection = fileChooser.showSaveDialog(contentPanel);
+
+            if (userSelection == JFileChooser.APPROVE_OPTION) {
+                File fileToSave = fileChooser.getSelectedFile();
+
+                // Ensure .js extension
+                if (!fileToSave.getName().endsWith(".js")) {
+                    fileToSave = new File(fileToSave.getAbsolutePath() + ".js");
+                }
+
+                // Copy resource to selected file
+                Files.copy(resourceStream, fileToSave.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                resourceStream.close();
+
+                Messages.showInfoMessage(
+                    project,
+                    "jira-mcp.js 파일이 성공적으로 다운로드되었습니다.\n\n저장 위치: " + fileToSave.getAbsolutePath(),
+                    "다운로드 완료"
+                );
+            }
+        } catch (IOException e) {
+            Messages.showErrorDialog(
+                project,
+                "파일 다운로드 중 오류가 발생했습니다:\n" + e.getMessage(),
+                "다운로드 실패"
+            );
+        }
+    }
+
     public JComponent getContent() {
         return contentPanel;
     }
