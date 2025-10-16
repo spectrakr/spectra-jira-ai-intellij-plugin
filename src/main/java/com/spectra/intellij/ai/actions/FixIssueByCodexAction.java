@@ -39,7 +39,7 @@ public class FixIssueByCodexAction extends AnAction {
 
         try {
             // Execute the command in terminal
-            String command = "codex --dangerously-skip-permissions \"/fix_issue " + issueKey + "\"";
+            String command = "codex \"/fix_issue " + issueKey + "\"";
             System.out.println("Executing command: " + command);
 
             // Open terminal and execute command

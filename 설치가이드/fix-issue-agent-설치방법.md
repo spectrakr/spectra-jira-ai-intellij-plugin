@@ -1,6 +1,6 @@
-## Fix Issue (by claude)
+## Fix Issue Agent 사용방법
 
-Fix issue (by Claude)는 아래와 같은 방식으로 동작합니다.
+Fix issue Agent는 아래와 같은 방식으로 동작합니다.
 
 1. mcp를 활용해서 jira의 description 정보를 조회합니다.
 2. 작업 전 feature 브랜치를 생성합니다.

@@ -269,8 +269,20 @@ public class IssueTableManager {
                         }
                     });
 
+                    JMenuItem codexMenuItem = new JMenuItem("Fix issue (by Codex)          ");
+                    codexMenuItem.addActionListener(ev -> {
+                        FixIssueByCodexAction codexAction = new FixIssueByCodexAction();
+                        codexAction.setIssueKey(issueKey);
+                        try {
+                            codexAction.execute(project);
+                        } catch (Exception ex) {
+                            com.intellij.openapi.diagnostic.Logger.getInstance(IssueTableManager.class).error(ex);
+                        }
+                    });
+
                     // Add some visual separation between menu items
                     popupMenu.add(claudeMenuItem);
+                    popupMenu.add(codexMenuItem);
                     popupMenu.add(geminiMenuItem);
 
                     popupMenu.show(e.getComponent(), e.getX(), e.getY());

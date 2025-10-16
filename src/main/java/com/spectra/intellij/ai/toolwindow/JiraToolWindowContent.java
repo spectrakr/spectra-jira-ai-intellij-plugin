@@ -816,8 +816,35 @@ public class JiraToolWindowContent {
         gbc.fill = GridBagConstraints.HORIZONTAL;
         panel.add(commandPanel, gbc);
 
-        // Gemini Command
+        // Codex Command
         gbc.gridx = 0; gbc.gridy = 8;
+        gbc.fill = GridBagConstraints.NONE;
+        panel.add(new JLabel("Codex 실행 명령어:"), gbc);
+
+        // Codex command field and example panel
+        JPanel codexCommandPanel = new JPanel(new BorderLayout(5, 0));
+
+        // Codex command field with reset button
+        JPanel codexCommandFieldPanel = new JPanel(new BorderLayout(5, 0));
+        JTextField codexCommandField = new JTextField(settings.getCodexCommand() != null ? settings.getCodexCommand() : "", 30);
+        JButton resetCodexButton = new JButton("초기화");
+        resetCodexButton.addActionListener(e -> {
+            codexCommandField.setText("codex \"/fix-issue $issueKey\"");
+        });
+        codexCommandFieldPanel.add(codexCommandField, BorderLayout.CENTER);
+        codexCommandFieldPanel.add(resetCodexButton, BorderLayout.EAST);
+
+        JLabel codexCommandExampleLabel = new JLabel("예) $issueKey 변수 사용 가능");
+        codexCommandExampleLabel.setForeground(Color.GRAY);
+        codexCommandPanel.add(codexCommandFieldPanel, BorderLayout.CENTER);
+        codexCommandPanel.add(codexCommandExampleLabel, BorderLayout.SOUTH);
+
+        gbc.gridx = 1; gbc.gridy = 8;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(codexCommandPanel, gbc);
+
+        // Gemini Command
+        gbc.gridx = 0; gbc.gridy = 9;
         gbc.fill = GridBagConstraints.NONE;
         panel.add(new JLabel("Gemini 실행 명령어:"), gbc);
 
@@ -839,12 +866,12 @@ public class JiraToolWindowContent {
         geminiCommandPanel.add(geminiCommandFieldPanel, BorderLayout.CENTER);
         geminiCommandPanel.add(geminiCommandExampleLabel, BorderLayout.SOUTH);
 
-        gbc.gridx = 1; gbc.gridy = 8;
+        gbc.gridx = 1; gbc.gridy = 9;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         panel.add(geminiCommandPanel, gbc);
 
         // Jira MCP
-        gbc.gridx = 0; gbc.gridy = 9;
+        gbc.gridx = 0; gbc.gridy = 10;
         gbc.fill = GridBagConstraints.NONE;
         panel.add(new JLabel("Jira MCP:"), gbc);
 
@@ -886,12 +913,38 @@ public class JiraToolWindowContent {
             }
         });
 
+        // Check if Codex MCP is already connected
+        boolean isCodexMcpConnected = codexMcpConnectionHandler.checkMcpConnection();
+
         // Codex connection button
-//        JButton codexButton = new JButton("Codex 연결");
-//        codexButton.addActionListener(e ->
-//            codexMcpConnectionHandler.setupCodexMcp(urlField.getText().trim(), userField.getText().trim(), new String(tokenField.getPassword()).trim())
-//        );
-//
+        JButton codexButton = new JButton(isCodexMcpConnected ? "Codex 연결 해제" : "Codex 연결");
+        codexButton.addActionListener(e -> {
+            boolean isConnected = codexMcpConnectionHandler.checkMcpConnection();
+            if (isConnected) {
+                // Disconnect
+                codexMcpConnectionHandler.removeMcpConnection(() -> {
+                    // Re-check MCP connection status and update button
+                    SwingUtilities.invokeLater(() -> {
+                        boolean newStatus = codexMcpConnectionHandler.checkMcpConnection();
+                        codexButton.setText(newStatus ? "Codex 연결 해제" : "Codex 연결");
+                        mcpButtonContainer.revalidate();
+                        mcpButtonContainer.repaint();
+                    });
+                });
+            } else {
+                // Connect
+                codexMcpConnectionHandler.setupCodexMcp(urlField.getText().trim(), userField.getText().trim(), new String(tokenField.getPassword()).trim(), () -> {
+                    // Re-check MCP connection status and update button
+                    SwingUtilities.invokeLater(() -> {
+                        boolean newStatus = codexMcpConnectionHandler.checkMcpConnection();
+                        codexButton.setText(newStatus ? "Codex 연결 해제" : "Codex 연결");
+                        mcpButtonContainer.revalidate();
+                        mcpButtonContainer.repaint();
+                    });
+                });
+            }
+        });
+
         // Check if Gemini MCP is already connected
         boolean isGeminiMcpConnected = geminiMcpConnectionHandler.checkMcpConnection();
 
@@ -925,9 +978,9 @@ public class JiraToolWindowContent {
         });
 
         mcpButtonContainer.add(claudeButton);
-//        mcpButtonContainer.add(codexButton);
+        mcpButtonContainer.add(codexButton);
         mcpButtonContainer.add(geminiButton);
-        gbc.gridx = 1; gbc.gridy = 9;
+        gbc.gridx = 1; gbc.gridy = 10;
         gbc.fill = GridBagConstraints.NONE;
         panel.add(mcpButtonContainer, gbc);
 
@@ -947,6 +1000,7 @@ public class JiraToolWindowContent {
             settings.setApiToken(new String(tokenField.getPassword()).trim());
             settings.setDefaultProjectKey(projectIdField.getText().trim());
             settings.setClaudeCommand(claudeCommandField.getText().trim());
+            settings.setCodexCommand(codexCommandField.getText().trim());
             settings.setGeminiCommand(geminiCommandField.getText().trim());
             
             // Refresh status after saving
