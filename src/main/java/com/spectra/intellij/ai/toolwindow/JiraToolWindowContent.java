@@ -802,7 +802,7 @@ public class JiraToolWindowContent {
         JTextField claudeCommandField = new JTextField(settings.getClaudeCommand() != null ? settings.getClaudeCommand() : "", 30);
         JButton resetClaudeButton = new JButton("초기화");
         resetClaudeButton.addActionListener(e -> {
-            claudeCommandField.setText(JiraSettings.getInstance().getClaudeCommand());
+            claudeCommandField.setText(JiraSettings.getDefaultClaudeCommand());
         });
         commandFieldPanel.add(claudeCommandField, BorderLayout.CENTER);
         commandFieldPanel.add(resetClaudeButton, BorderLayout.EAST);
@@ -829,7 +829,7 @@ public class JiraToolWindowContent {
         JTextField codexCommandField = new JTextField(settings.getCodexCommand() != null ? settings.getCodexCommand() : "", 30);
         JButton resetCodexButton = new JButton("초기화");
         resetCodexButton.addActionListener(e -> {
-            codexCommandField.setText(JiraSettings.getInstance().getCodexCommand());
+            codexCommandField.setText(JiraSettings.getDefaultCodexCommand());
         });
         codexCommandFieldPanel.add(codexCommandField, BorderLayout.CENTER);
         codexCommandFieldPanel.add(resetCodexButton, BorderLayout.EAST);
@@ -856,7 +856,7 @@ public class JiraToolWindowContent {
         JTextField geminiCommandField = new JTextField(settings.getGeminiCommand() != null ? settings.getGeminiCommand() : "", 30);
         JButton resetGeminiButton = new JButton("초기화");
         resetGeminiButton.addActionListener(e -> {
-            geminiCommandField.setText(JiraSettings.getInstance().getGeminiCommand());
+            geminiCommandField.setText(JiraSettings.getDefaultGeminiCommand());
         });
         geminiCommandFieldPanel.add(geminiCommandField, BorderLayout.CENTER);
         geminiCommandFieldPanel.add(resetGeminiButton, BorderLayout.EAST);

@@ -18,12 +18,30 @@ public final class JiraSettings implements PersistentStateComponent<JiraSettings
     public String apiToken = "";
     public String defaultBoardId = "";
     public String defaultProjectKey = "";
-    public String claudeCommand = "claude --dangerously-skip-permissions \"fix-issue-agent sub agent를 이용하여 \\\"$issueKey\\\" 이슈 처리해줘\"";
-    public String codexCommand = "codex --yolo $prompt";
-    public String geminiCommand = "gemini --yolo \"/fix-issue $issueKey\"";
+
+    // Default command constants
+    private static final String DEFAULT_CLAUDE_COMMAND = "claude --dangerously-skip-permissions \"fix-issue-agent sub agent를 이용하여 \\\"$issueKey\\\" 이슈 처리해줘\"";
+    private static final String DEFAULT_CODEX_COMMAND = "codex --yolo \"$prompt\"";
+    private static final String DEFAULT_GEMINI_COMMAND = "gemini --yolo \"/fix-issue $issueKey\"";
+
+    public String claudeCommand = DEFAULT_CLAUDE_COMMAND;
+    public String codexCommand = DEFAULT_CODEX_COMMAND;
+    public String geminiCommand = DEFAULT_GEMINI_COMMAND;
 
     public static JiraSettings getInstance() {
         return ApplicationManager.getApplication().getService(JiraSettings.class);
+    }
+
+    public static String getDefaultClaudeCommand() {
+        return DEFAULT_CLAUDE_COMMAND;
+    }
+
+    public static String getDefaultCodexCommand() {
+        return DEFAULT_CODEX_COMMAND;
+    }
+
+    public static String getDefaultGeminiCommand() {
+        return DEFAULT_GEMINI_COMMAND;
     }
     
     @Override

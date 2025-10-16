@@ -47,11 +47,7 @@
             <add-to-group group-id="ToolsMenu" anchor="first"/>
         </action>
 
-        <!-- Settings -->
-        <applicationConfigurable parentId="tools" 
-                                instance="com.spectra.intellij.ai.settings.JiraConfigurable"
-                                id="com.spectra.intellij.ai.settings.JiraConfigurable"
-                                displayName="Spectra Jira Settings"/>
+
     </extensions>
 
 </idea-plugin>
