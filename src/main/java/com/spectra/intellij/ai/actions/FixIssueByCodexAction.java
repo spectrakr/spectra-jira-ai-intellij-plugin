@@ -38,8 +38,26 @@ public class FixIssueByCodexAction extends AnAction {
         }
 
         try {
+            // Read prompt template from ~/.codex/prompts/fix-issue.md
+            String userHome = System.getProperty("user.home");
+            String promptFilePath = userHome + "/.codex/prompts/fix-issue.md";
+            java.nio.file.Path path = java.nio.file.Paths.get(promptFilePath);
+
+            String promptContent;
+            if (java.nio.file.Files.exists(path)) {
+                promptContent = java.nio.file.Files.readString(path);
+                // Replace <issueKey> variable with actual issue key
+                promptContent = promptContent.replace("<issueKey>", issueKey);
+            } else {
+                // Fallback if file doesn't exist
+                promptContent = "Fix issue " + issueKey;
+            }
+
+            // Escape quotes in prompt content
+            promptContent = promptContent.replace("\"", "\\\"");
+
             // Execute the command in terminal
-            String command = "codex \"/fix_issue " + issueKey + "\"";
+            String command = "codex \"" + promptContent + "\"";
             System.out.println("Executing command: " + command);
 
             // Open terminal and execute command

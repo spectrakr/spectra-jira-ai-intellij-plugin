@@ -829,7 +829,7 @@ public class JiraToolWindowContent {
         JTextField codexCommandField = new JTextField(settings.getCodexCommand() != null ? settings.getCodexCommand() : "", 30);
         JButton resetCodexButton = new JButton("초기화");
         resetCodexButton.addActionListener(e -> {
-            codexCommandField.setText("codex \"/fix-issue $issueKey\"");
+            codexCommandField.setText("codex");
         });
         codexCommandFieldPanel.add(codexCommandField, BorderLayout.CENTER);
         codexCommandFieldPanel.add(resetCodexButton, BorderLayout.EAST);
