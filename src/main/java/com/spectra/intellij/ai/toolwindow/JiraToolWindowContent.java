@@ -802,7 +802,7 @@ public class JiraToolWindowContent {
         JTextField claudeCommandField = new JTextField(settings.getClaudeCommand() != null ? settings.getClaudeCommand() : "", 30);
         JButton resetClaudeButton = new JButton("초기화");
         resetClaudeButton.addActionListener(e -> {
-            claudeCommandField.setText("claude --dangerously-skip-permissions \"fix-issue-agent sub agent를 이용하여 \\\"$issueKey\\\" 이슈 처리해줘\"");
+            claudeCommandField.setText(JiraSettings.getInstance().getClaudeCommand());
         });
         commandFieldPanel.add(claudeCommandField, BorderLayout.CENTER);
         commandFieldPanel.add(resetClaudeButton, BorderLayout.EAST);
@@ -829,12 +829,12 @@ public class JiraToolWindowContent {
         JTextField codexCommandField = new JTextField(settings.getCodexCommand() != null ? settings.getCodexCommand() : "", 30);
         JButton resetCodexButton = new JButton("초기화");
         resetCodexButton.addActionListener(e -> {
-            codexCommandField.setText("codex");
+            codexCommandField.setText(JiraSettings.getInstance().getCodexCommand());
         });
         codexCommandFieldPanel.add(codexCommandField, BorderLayout.CENTER);
         codexCommandFieldPanel.add(resetCodexButton, BorderLayout.EAST);
 
-        JLabel codexCommandExampleLabel = new JLabel("예) $issueKey 변수 사용 가능");
+        JLabel codexCommandExampleLabel = new JLabel("예) $prompt 변수 사용 가능");
         codexCommandExampleLabel.setForeground(Color.GRAY);
         codexCommandPanel.add(codexCommandFieldPanel, BorderLayout.CENTER);
         codexCommandPanel.add(codexCommandExampleLabel, BorderLayout.SOUTH);
@@ -856,7 +856,7 @@ public class JiraToolWindowContent {
         JTextField geminiCommandField = new JTextField(settings.getGeminiCommand() != null ? settings.getGeminiCommand() : "", 30);
         JButton resetGeminiButton = new JButton("초기화");
         resetGeminiButton.addActionListener(e -> {
-            geminiCommandField.setText("gemini --yolo \"/fix-issue $issueKey\"");
+            geminiCommandField.setText(JiraSettings.getInstance().getGeminiCommand());
         });
         geminiCommandFieldPanel.add(geminiCommandField, BorderLayout.CENTER);
         geminiCommandFieldPanel.add(resetGeminiButton, BorderLayout.EAST);

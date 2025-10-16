@@ -1,6 +1,6 @@
 아래 순서대로 진행하세요.
 1. spectra-jira mcp를 활용해서 해당 이슈 내용 확인 ($1)
-2. 이슈 작업 전 branch를 생성하여 작업을 실행 (git branch -b develop feature/$1)
+2. 이슈 작업 전 branch를 생성하여 작업을 실행 (git checkout -b feature/$1 develop)
 3. description에 설명된 내용대로 이슈 처리
 
 이슈 처리작업 완료 후:

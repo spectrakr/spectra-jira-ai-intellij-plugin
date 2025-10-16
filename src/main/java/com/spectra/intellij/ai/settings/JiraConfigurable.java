@@ -166,63 +166,6 @@ public class JiraConfigurable implements Configurable {
             projectPanel.add(exampleLabel, BorderLayout.CENTER);
             panel.add(projectPanel, gbc);
 
-            // Jira MCP Section Header
-            gbc.gridx = 0; gbc.gridy = 4; gbc.gridwidth = 2; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
-            gbc.insets = new Insets(15, 5, 5, 5); // Add extra top margin
-            JLabel mcpHeaderLabel = new JLabel("Jira MCP");
-            mcpHeaderLabel.setFont(mcpHeaderLabel.getFont().deriveFont(Font.BOLD, 14f));
-            panel.add(mcpHeaderLabel, gbc);
-
-            // Claude Command
-            gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 1; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
-            gbc.insets = new Insets(5, 5, 5, 5); // Reset insets
-            panel.add(new JLabel("Claude 실행 명령어:"), gbc);
-
-            // Command field and example panel
-            gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
-            JPanel commandPanel = new JPanel(new BorderLayout(5, 0));
-
-            // Command field with reset button
-            JPanel commandFieldPanel = new JPanel(new BorderLayout(5, 0));
-            claudeCommandField = new JTextField(30);
-            JButton resetClaudeButton = new JButton("초기화");
-            resetClaudeButton.addActionListener(e -> {
-                claudeCommandField.setText("claude --dangerously-skip-permissions \"fix-issue-agent sub agent를 이용하여 \\\"$issueKey\\\" 이슈 처리해줘\"");
-            });
-            commandFieldPanel.add(claudeCommandField, BorderLayout.CENTER);
-            commandFieldPanel.add(resetClaudeButton, BorderLayout.EAST);
-
-            JLabel commandExampleLabel = new JLabel("예) $issueKey 변수 사용 가능");
-            commandExampleLabel.setForeground(Color.GRAY);
-            commandPanel.add(commandFieldPanel, BorderLayout.CENTER);
-            commandPanel.add(commandExampleLabel, BorderLayout.SOUTH);
-            panel.add(commandPanel, gbc);
-
-            // Gemini Command
-            gbc.gridx = 0; gbc.gridy = 6; gbc.gridwidth = 1; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
-            gbc.insets = new Insets(5, 5, 5, 5);
-            panel.add(new JLabel("Gemini 실행 명령어:"), gbc);
-
-            // Gemini command field and example panel
-            gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
-            JPanel geminiCommandPanel = new JPanel(new BorderLayout(5, 0));
-
-            // Gemini command field with reset button
-            JPanel geminiCommandFieldPanel = new JPanel(new BorderLayout(5, 0));
-            geminiCommandField = new JTextField(30);
-            JButton resetGeminiButton = new JButton("초기화");
-            resetGeminiButton.addActionListener(e -> {
-                geminiCommandField.setText("gemini --yolo \"/fix-issue $issueKey\"");
-            });
-            geminiCommandFieldPanel.add(geminiCommandField, BorderLayout.CENTER);
-            geminiCommandFieldPanel.add(resetGeminiButton, BorderLayout.EAST);
-
-            JLabel geminiCommandExampleLabel = new JLabel("예) $issueKey 변수 사용 가능");
-            geminiCommandExampleLabel.setForeground(Color.GRAY);
-            geminiCommandPanel.add(geminiCommandFieldPanel, BorderLayout.CENTER);
-            geminiCommandPanel.add(geminiCommandExampleLabel, BorderLayout.SOUTH);
-            panel.add(geminiCommandPanel, gbc);
-
             // Buttons Panel
             gbc.gridx = 0; gbc.gridy = 7; gbc.gridwidth = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0; gbc.weighty = 0;
             gbc.anchor = GridBagConstraints.CENTER;

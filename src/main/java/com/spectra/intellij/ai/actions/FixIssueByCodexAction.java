@@ -4,6 +4,7 @@ import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
+import com.spectra.intellij.ai.settings.JiraSettings;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.plugins.terminal.TerminalToolWindowManager;
 
@@ -50,7 +51,7 @@ public class FixIssueByCodexAction extends AnAction {
                 promptContent = promptContent.replace("$1", issueKey);
             } else {
                 // Fallback if file doesn't exist
-                promptContent = "Fix issue " + issueKey;
+                promptContent = "Do nothing";
             }
 
             // Escape quotes and newlines in prompt content
@@ -58,7 +59,8 @@ public class FixIssueByCodexAction extends AnAction {
             promptContent = promptContent.replace("\n", "\\n");
 
             // Execute the command in terminal
-            String command = "codex \"" + promptContent + "\"";
+//            String command = "codex --sandbox workspace-write --ask-for-approval never \"" + promptContent + "\" ";
+            String command = JiraSettings.getInstance().getCodexCommand().replace("$prompt", promptContent);
             System.out.println("Executing command: " + command);
 
             // Open terminal and execute command

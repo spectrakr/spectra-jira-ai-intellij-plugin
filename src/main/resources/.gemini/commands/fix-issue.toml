@@ -4,7 +4,7 @@ Jira 이슈를 처리해주세요: {{args}}
 
 다음 순서에 따라 이슈를 처리하세요:
 1. spectra-jira mcp를 활용해서 이슈 내용 확인 (issueKey: $1)
-2. git branch -b develop feature/$1
+2. 이슈 작업 전 branch를 생성하여 작업을 실행 (git checkout -b feature/$1 develop)
 3. 이슈 내용에 따라 작업 실행
 4. git commit and push
 5. gh pr create를 사용하여 pull request 생성
