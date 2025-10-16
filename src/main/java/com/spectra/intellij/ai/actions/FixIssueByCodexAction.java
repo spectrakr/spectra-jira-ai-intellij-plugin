@@ -53,8 +53,9 @@ public class FixIssueByCodexAction extends AnAction {
                 promptContent = "Fix issue " + issueKey;
             }
 
-            // Escape quotes in prompt content
+            // Escape quotes and newlines in prompt content
             promptContent = promptContent.replace("\"", "\\\"");
+            promptContent = promptContent.replace("\n", "\\n");
 
             // Execute the command in terminal
             String command = "codex \"" + promptContent + "\"";
