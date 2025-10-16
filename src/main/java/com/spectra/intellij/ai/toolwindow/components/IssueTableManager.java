@@ -8,6 +8,9 @@ import com.spectra.intellij.ai.actions.FixIssueByGeminiAction;
 import com.spectra.intellij.ai.actions.FixIssueByChatGPTAction;
 import com.spectra.intellij.ai.model.JiraIssue;
 import com.spectra.intellij.ai.settings.JiraSettings;
+import com.spectra.intellij.ai.toolwindow.handlers.ClaudeMcpConnectionHandler;
+import com.spectra.intellij.ai.toolwindow.handlers.CodexMcpConnectionHandler;
+import com.spectra.intellij.ai.toolwindow.handlers.GeminiMcpConnectionHandler;
 import com.spectra.intellij.ai.ui.IssueTableCellRenderer;
 
 import javax.swing.*;
@@ -35,11 +38,19 @@ public class IssueTableManager {
     private final DefaultTableModel originalIssueTableModel; // Store unfiltered data
     private final Map<Integer, String> priorityIconUrlMap = new HashMap<>();
     private final TableRowSorter<DefaultTableModel> tableSorter;
-    
+
     private Consumer<String> onIssueSelected;
+
+    // MCP connection handlers
+    private final ClaudeMcpConnectionHandler claudeMcpConnectionHandler;
+    private final CodexMcpConnectionHandler codexMcpConnectionHandler;
+    private final GeminiMcpConnectionHandler geminiMcpConnectionHandler;
 
     public IssueTableManager(Project project) {
         this.project = project;
+        this.claudeMcpConnectionHandler = new ClaudeMcpConnectionHandler(project);
+        this.codexMcpConnectionHandler = new CodexMcpConnectionHandler(project);
+        this.geminiMcpConnectionHandler = new GeminiMcpConnectionHandler(project);
         issueTableModel = new DefaultTableModel(
             new String[]{"Key", "Summary", "Status", "Story Points", "Priority", "Assignee"}, 0
         ) {
@@ -244,46 +255,61 @@ public class IssueTableManager {
                     popupMenu.add(openInBrowserMenuItem);
                     popupMenu.add(copyLinkMenuItem);
                     popupMenu.add(copyIdMenuItem);
-                    popupMenu.addSeparator();
 
-                    // Create menu items with proper spacing
-                    JMenuItem claudeMenuItem = new JMenuItem("Fix issue (by Claude)         ");
-                    claudeMenuItem.addActionListener(ev -> {
-                        FixIssueByClaudeAction claudeAction = new FixIssueByClaudeAction();
-                        claudeAction.setIssueKey(issueKey);
-                        try {
-                            claudeAction.execute(project);
-                        } catch (Exception ex) {
-                            com.intellij.openapi.diagnostic.Logger.getInstance(IssueTableManager.class).error(ex);
-                        }
-                    });
+                    // Check connection status for each AI service
+                    boolean isClaudeConnected = claudeMcpConnectionHandler.checkMcpConnection();
+                    boolean isCodexConnected = codexMcpConnectionHandler.checkMcpConnection();
+                    boolean isGeminiConnected = geminiMcpConnectionHandler.checkMcpConnection();
 
-                    JMenuItem geminiMenuItem = new JMenuItem("Fix issue (by Gemini)         ");
-                    geminiMenuItem.addActionListener(ev -> {
-                        FixIssueByGeminiAction geminiAction = new FixIssueByGeminiAction();
-                        geminiAction.setIssueKey(issueKey);
-                        try {
-                            geminiAction.execute(project);
-                        } catch (Exception ex) {
-                            com.intellij.openapi.diagnostic.Logger.getInstance(IssueTableManager.class).error(ex);
-                        }
-                    });
+                    // Only add separator if at least one AI service is connected
+                    if (isClaudeConnected || isCodexConnected || isGeminiConnected) {
+                        popupMenu.addSeparator();
+                    }
 
-                    JMenuItem codexMenuItem = new JMenuItem("Fix issue (by Codex)          ");
-                    codexMenuItem.addActionListener(ev -> {
-                        FixIssueByCodexAction codexAction = new FixIssueByCodexAction();
-                        codexAction.setIssueKey(issueKey);
-                        try {
-                            codexAction.execute(project);
-                        } catch (Exception ex) {
-                            com.intellij.openapi.diagnostic.Logger.getInstance(IssueTableManager.class).error(ex);
-                        }
-                    });
+                    // Add Claude menu item only if connected
+                    if (isClaudeConnected) {
+                        JMenuItem claudeMenuItem = new JMenuItem("Fix issue (by Claude)         ");
+                        claudeMenuItem.addActionListener(ev -> {
+                            FixIssueByClaudeAction claudeAction = new FixIssueByClaudeAction();
+                            claudeAction.setIssueKey(issueKey);
+                            try {
+                                claudeAction.execute(project);
+                            } catch (Exception ex) {
+                                com.intellij.openapi.diagnostic.Logger.getInstance(IssueTableManager.class).error(ex);
+                            }
+                        });
+                        popupMenu.add(claudeMenuItem);
+                    }
 
-                    // Add some visual separation between menu items
-                    popupMenu.add(claudeMenuItem);
-                    popupMenu.add(codexMenuItem);
-                    popupMenu.add(geminiMenuItem);
+                    // Add Codex menu item only if connected
+                    if (isCodexConnected) {
+                        JMenuItem codexMenuItem = new JMenuItem("Fix issue (by Codex)          ");
+                        codexMenuItem.addActionListener(ev -> {
+                            FixIssueByCodexAction codexAction = new FixIssueByCodexAction();
+                            codexAction.setIssueKey(issueKey);
+                            try {
+                                codexAction.execute(project);
+                            } catch (Exception ex) {
+                                com.intellij.openapi.diagnostic.Logger.getInstance(IssueTableManager.class).error(ex);
+                            }
+                        });
+                        popupMenu.add(codexMenuItem);
+                    }
+
+                    // Add Gemini menu item only if connected
+                    if (isGeminiConnected) {
+                        JMenuItem geminiMenuItem = new JMenuItem("Fix issue (by Gemini)         ");
+                        geminiMenuItem.addActionListener(ev -> {
+                            FixIssueByGeminiAction geminiAction = new FixIssueByGeminiAction();
+                            geminiAction.setIssueKey(issueKey);
+                            try {
+                                geminiAction.execute(project);
+                            } catch (Exception ex) {
+                                com.intellij.openapi.diagnostic.Logger.getInstance(IssueTableManager.class).error(ex);
+                            }
+                        });
+                        popupMenu.add(geminiMenuItem);
+                    }
 
                     popupMenu.show(e.getComponent(), e.getX(), e.getY());
                 }
