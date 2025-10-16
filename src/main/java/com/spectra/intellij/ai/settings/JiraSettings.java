@@ -19,7 +19,7 @@ public final class JiraSettings implements PersistentStateComponent<JiraSettings
     public String defaultBoardId = "";
     public String defaultProjectKey = "";
     public String claudeCommand = "claude --dangerously-skip-permissions \"fix-issue-agent sub agent를 이용하여 \\\"$issueKey\\\" 이슈 처리해줘\"";
-    public String codexCommand = "codex \"/fix-issue $issueKey\"";
+    public String codexCommand = "codex";
     public String geminiCommand = "gemini --yolo \"/fix-issue $issueKey\"";
 
     public static JiraSettings getInstance() {

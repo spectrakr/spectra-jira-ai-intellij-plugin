@@ -47,7 +47,7 @@ public class FixIssueByCodexAction extends AnAction {
             if (java.nio.file.Files.exists(path)) {
                 promptContent = java.nio.file.Files.readString(path);
                 // Replace <issueKey> variable with actual issue key
-                promptContent = promptContent.replace("<issueKey>", issueKey);
+                promptContent = promptContent.replace("$1", issueKey);
             } else {
                 // Fallback if file doesn't exist
                 promptContent = "Fix issue " + issueKey;
