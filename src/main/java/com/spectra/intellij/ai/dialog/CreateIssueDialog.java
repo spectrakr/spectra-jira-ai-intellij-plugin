@@ -93,8 +93,6 @@ public class CreateIssueDialog extends DialogWrapper {
         gbc.anchor = GridBagConstraints.WEST;
         aiGenerateButton = new JButton("(AI) 내용 자동 생성");
         aiGenerateButton.addActionListener(e -> performAIWorkGeneration());
-        aiGenerateButton.setPreferredSize(new Dimension(100, 25));
-        aiGenerateButton.setFont(aiGenerateButton.getFont().deriveFont(11.0f));
         panel.add(aiGenerateButton, gbc);
         
         // Priority
