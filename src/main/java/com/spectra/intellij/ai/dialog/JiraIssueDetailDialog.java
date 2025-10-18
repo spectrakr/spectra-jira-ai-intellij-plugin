@@ -116,9 +116,9 @@ public class JiraIssueDetailDialog extends DialogWrapper {
     
     private JPanel createAssigneeSelectionPanel() {
         JPanel panel = new JPanel(new BorderLayout());
-        
-        // Create combo box with "me" and "Select" options
-        assigneeComboBox = new JComboBox<>(new String[]{"Select option...", "me", "Select"});
+
+        // Create combo box with "Unassigned", "me" and "Select" options
+        assigneeComboBox = new JComboBox<>(new String[]{"Select option...", "Unassigned", "me", "Select"});
         panel.add(assigneeComboBox, BorderLayout.NORTH);
         
         // Create search panel (initially hidden)
@@ -144,7 +144,11 @@ public class JiraIssueDetailDialog extends DialogWrapper {
             @Override
             public void actionPerformed(ActionEvent e) {
                 String selected = (String) assigneeComboBox.getSelectedItem();
-                if ("me".equals(selected)) {
+                if ("Unassigned".equals(selected)) {
+                    assigneeSearchPanel.setVisible(false);
+                    selectedAssigneeAccountId = null;
+                    selectedAssigneeDisplayName = null;
+                } else if ("me".equals(selected)) {
                     assigneeSearchPanel.setVisible(false);
                     setAssigneeToCurrentUser();
                 } else if ("Select".equals(selected)) {
@@ -256,21 +260,30 @@ public class JiraIssueDetailDialog extends DialogWrapper {
             // Check if assignee was changed
             boolean assigneeChanged = false;
             String currentAssignee = issue.getAssignee();
-            if (selectedAssigneeDisplayName != null) {
-                assigneeChanged = !selectedAssigneeDisplayName.equals(currentAssignee);
-            } else if (currentAssignee != null) {
-                assigneeChanged = true; // Assignee was cleared
+
+            // Compare current assignee with selected assignee
+            if (selectedAssigneeDisplayName == null && currentAssignee != null) {
+                // Assignee was cleared (set to Unassigned)
+                assigneeChanged = true;
+            } else if (selectedAssigneeDisplayName != null && !selectedAssigneeDisplayName.equals(currentAssignee)) {
+                // Assignee was changed to a different user
+                assigneeChanged = true;
             }
-            
+
             if (summaryChanged || statusChanged || descriptionChanged || assigneeChanged) {
                 // Update the issue object
                 issue.setSummary(summaryField.getText().trim());
                 issue.setStatus((String) statusComboBox.getSelectedItem());
                 issue.setDescription(descriptionArea.getText().trim());
-                
-                // Update assignee
+
+                // Update assignee - set to null if Unassigned, otherwise set to selected display name
                 if (assigneeChanged) {
-                    issue.setAssignee(selectedAssigneeDisplayName);
+                    if (selectedAssigneeDisplayName == null) {
+                        // Unassigned - set to empty string to trigger null in API
+                        issue.setAssignee("");
+                    } else {
+                        issue.setAssignee(selectedAssigneeDisplayName);
+                    }
                 }
                 
                 // Update via API
@@ -362,9 +375,9 @@ public class JiraIssueDetailDialog extends DialogWrapper {
     
     private void initializeAssigneeSelection() {
         String currentAssignee = issue.getAssignee();
-        if (currentAssignee != null) {
+        if (currentAssignee != null && !currentAssignee.isEmpty()) {
             selectedAssigneeDisplayName = currentAssignee;
-            
+
             // Check if current assignee is the logged-in user
             if (currentUser != null && currentAssignee.equals(currentUser.get("displayName").getAsString())) {
                 assigneeComboBox.setSelectedItem("me");
@@ -376,10 +389,15 @@ public class JiraIssueDetailDialog extends DialogWrapper {
                 assigneeSearchField.setText(currentAssignee);
                 assigneeSearchResults.setListData(new String[]{currentAssignee});
                 assigneeSearchResults.setSelectedValue(currentAssignee, true);
-                
+
                 // Find the account ID for the current assignee
                 findAccountIdForSelectedUser(currentAssignee);
             }
+        } else {
+            // No assignee - set to Unassigned
+            assigneeComboBox.setSelectedItem("Unassigned");
+            selectedAssigneeAccountId = null;
+            selectedAssigneeDisplayName = null;
         }
     }
     

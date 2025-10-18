@@ -3,6 +3,7 @@ package com.spectra.intellij.ai.service;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonNull;
 import com.spectra.intellij.ai.model.JiraIssue;
 import com.spectra.intellij.ai.model.JiraSprint;
 import com.spectra.intellij.ai.model.JiraEpic;
@@ -914,29 +915,27 @@ public class JiraService {
         }
         
         // Update assignee
-        if (issue.getAssignee() != null) {
-            if (issue.getAssignee().isEmpty()) {
-                // Unassign by setting assignee to null
-                fields.add("assignee", null);
-            } else {
-                // Try to find user by display name first
-                try {
-                    String accountId = findUserAccountIdByDisplayName(issue.getAssignee());
-                    if (accountId != null) {
-                        JsonObject assignee = new JsonObject();
-                        assignee.addProperty("accountId", accountId);
-                        fields.add("assignee", assignee);
-                    }
-                } catch (IOException e) {
-                    System.err.println("Failed to find user account ID for: " + issue.getAssignee());
-                    // Fallback to displayName (might not work in some Jira instances)
+        if (issue.getAssignee() != null || issue.getAssignee().isEmpty()) {
+            // Unassign by setting assignee to explicit null
+            fields.add("assignee", JsonNull.INSTANCE);
+        } else {
+            // Try to find user by display name first
+            try {
+                String accountId = findUserAccountIdByDisplayName(issue.getAssignee());
+                if (accountId != null) {
                     JsonObject assignee = new JsonObject();
-                    assignee.addProperty("displayName", issue.getAssignee());
+                    assignee.addProperty("accountId", accountId);
                     fields.add("assignee", assignee);
                 }
+            } catch (IOException e) {
+                System.err.println("Failed to find user account ID for: " + issue.getAssignee());
+                // Fallback to displayName (might not work in some Jira instances)
+                JsonObject assignee = new JsonObject();
+                assignee.addProperty("displayName", issue.getAssignee());
+                fields.add("assignee", assignee);
             }
         }
-        
+
         // Update story points (custom field) - must be in fields object
         String storyPointsField = getStoryPointsField();
         if (issue.getStoryPoints() != null) {
@@ -1505,22 +1504,26 @@ public class JiraService {
     }
 
     public void updateIssueAssignee(String issueKey, String assigneeAccountId) throws IOException {
+        System.out.println("___ updateIssueAssignee");
         String url = baseUrl + "rest/api/" + JIRA_API_VERSION_3 + "/issue/" + issueKey;
-        
+
         JsonObject updatePayload = new JsonObject();
         JsonObject fields = new JsonObject();
-        
+
+        System.out.println("assigneeAccountId: " + assigneeAccountId);
         if (assigneeAccountId != null && !assigneeAccountId.isEmpty()) {
             JsonObject assignee = new JsonObject();
             assignee.addProperty("accountId", assigneeAccountId);
             fields.add("assignee", assignee);
         } else {
-            // Unassign by setting assignee to null
-            fields.add("assignee", null);
+            // Unassign by setting assignee to explicit null
+            JsonObject assignee = new JsonObject();
+            assignee.add("accountId", null);
+            fields.add("assignee", assignee);
         }
-        
+
         updatePayload.add("fields", fields);
-        
+
         RequestBody body = RequestBody.create(
             gson.toJson(updatePayload),
             MediaType.parse("application/json")
@@ -1532,7 +1535,7 @@ public class JiraService {
         Request request = buildRequest(url).newBuilder()
             .put(body)
             .build();
-        
+
         try (Response response = client.newCall(request).execute()) {
             String responseBody = response.body() != null ? response.body().string() : "";
 

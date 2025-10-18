@@ -17,10 +17,7 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
+import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
@@ -198,6 +195,7 @@ public class IssueTableManager {
 
                     // Create "Open in Browser" menu item
                     JMenuItem openInBrowserMenuItem = new JMenuItem("웹브라우저로 보기");
+                    openInBrowserMenuItem.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
                     openInBrowserMenuItem.addActionListener(ev -> {
                         try {
                             JiraSettings settings = JiraSettings.getInstance();
@@ -218,6 +216,7 @@ public class IssueTableManager {
 
                     // Create "Copy Link" menu item
                     JMenuItem copyLinkMenuItem = new JMenuItem("링크 복사");
+                    copyLinkMenuItem.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
                     copyLinkMenuItem.addActionListener(ev -> {
                         try {
                             JiraSettings settings = JiraSettings.getInstance();
@@ -239,6 +238,7 @@ public class IssueTableManager {
 
                     // Create "Copy ID" menu item
                     JMenuItem copyIdMenuItem = new JMenuItem("아이디 복사 (" + issueKey + ")");
+                    copyIdMenuItem.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
                     copyIdMenuItem.addActionListener(ev -> {
                         try {
                             java.awt.datatransfer.StringSelection stringSelection =
@@ -269,6 +269,7 @@ public class IssueTableManager {
                     // Add Claude menu item only if connected
                     if (isClaudeConnected) {
                         JMenuItem claudeMenuItem = new JMenuItem("Fix issue (by Claude)         ");
+                        claudeMenuItem.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
                         claudeMenuItem.addActionListener(ev -> {
                             FixIssueByClaudeAction claudeAction = new FixIssueByClaudeAction();
                             claudeAction.setIssueKey(issueKey);
@@ -284,6 +285,7 @@ public class IssueTableManager {
                     // Add Codex menu item only if connected
                     if (isCodexConnected) {
                         JMenuItem codexMenuItem = new JMenuItem("Fix issue (by Codex)          ");
+                        codexMenuItem.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
                         codexMenuItem.addActionListener(ev -> {
                             FixIssueByCodexAction codexAction = new FixIssueByCodexAction();
                             codexAction.setIssueKey(issueKey);
@@ -299,6 +301,7 @@ public class IssueTableManager {
                     // Add Gemini menu item only if connected
                     if (isGeminiConnected) {
                         JMenuItem geminiMenuItem = new JMenuItem("Fix issue (by Gemini)         ");
+                        geminiMenuItem.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
                         geminiMenuItem.addActionListener(ev -> {
                             FixIssueByGeminiAction geminiAction = new FixIssueByGeminiAction();
                             geminiAction.setIssueKey(issueKey);
