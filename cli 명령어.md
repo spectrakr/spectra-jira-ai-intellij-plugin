@@ -19,6 +19,8 @@ gemini mcp add spectra-jira --command "node" --args "/Users/rudaks/jira-mcp.js" 
 
 
 ## Codex
+### 실행
+codex --yolo "prompt 내용"
 
 #### mcp add
 codex mcp add spectra-jira "node" "/Users/rudaks/IdeaProjects/untitled1/.codex/mcp/jira-mcp.js" "--token" "<token>" "--email" "kmhan@spectra.co.kr" "--baseUrl" "https://enomix.atlassian.net/"

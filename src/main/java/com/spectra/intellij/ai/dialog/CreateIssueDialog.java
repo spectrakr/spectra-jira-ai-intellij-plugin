@@ -24,6 +24,7 @@ public class CreateIssueDialog extends DialogWrapper {
     private JTextField summaryField;
     private JTextArea descriptionArea;
     private JButton aiGenerateButton;
+    private JButton aiPromptButton;
     private JComboBox<String> priorityComboBox;
     private JComboBox<String> issueTypeComboBox;
     private JComboBox<JiraSprint> sprintComboBox;
@@ -88,14 +89,21 @@ public class CreateIssueDialog extends DialogWrapper {
         descriptionScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         panel.add(descriptionScrollPane, gbc);
         
-        // AI Generate Button
+        // AI Generate Buttons Panel
         gbc.gridx = 1; gbc.gridy = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0; gbc.weighty = 0;
         gbc.anchor = GridBagConstraints.WEST;
+
+        JPanel aiButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+
         aiGenerateButton = new JButton("(AI) 내용 자동 생성");
         aiGenerateButton.addActionListener(e -> performAIWorkGeneration());
-        aiGenerateButton.setPreferredSize(new Dimension(100, 25));
-        aiGenerateButton.setFont(aiGenerateButton.getFont().deriveFont(11.0f));
-        panel.add(aiGenerateButton, gbc);
+        aiButtonsPanel.add(aiGenerateButton);
+
+        aiPromptButton = new JButton("(AI) 프롬프트로 생성");
+        aiPromptButton.addActionListener(e -> openAIPromptDialog());
+        aiButtonsPanel.add(aiPromptButton);
+
+        panel.add(aiButtonsPanel, gbc);
         
         // Priority
         gbc.gridx = 0; gbc.gridy = 3; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0; gbc.weighty = 0;
@@ -822,7 +830,7 @@ public class CreateIssueDialog extends DialogWrapper {
                 // Re-enable button
                 aiGenerateButton.setEnabled(true);
                 aiGenerateButton.setText("(AI) 내용 자동 생성");
-                
+
                 if (generatedDescription != null && !generatedDescription.trim().isEmpty()) {
                     // Append AI-generated content to the end of description
                     String currentDescription = descriptionArea.getText().trim();
@@ -841,11 +849,40 @@ public class CreateIssueDialog extends DialogWrapper {
                 SwingUtilities.invokeLater(() -> {
                     aiGenerateButton.setEnabled(true);
                     aiGenerateButton.setText("(AI) 내용 자동 생성");
-                    
+
                     String errorMessage = "AI 작업 생성 중 오류가 발생했습니다: " + throwable.getMessage();
                     Messages.showErrorDialog(project, errorMessage, "AI 작업 생성 오류");
                 });
                 return null;
             });
+    }
+
+    private void openAIPromptDialog() {
+        AIPromptDialog dialog = new AIPromptDialog(project, jiraService);
+        if (dialog.showAndGet()) {
+            // Dialog was closed - user can optionally use the generated result
+            String generatedResult = dialog.getGeneratedResult();
+            if (generatedResult != null && !generatedResult.trim().isEmpty() &&
+                !generatedResult.contains("오류가 발생했습니다") &&
+                !generatedResult.contains("생성하지 못했습니다")) {
+
+                // Ask user if they want to add the result to description
+                int result = Messages.showYesNoDialog(
+                    project,
+                    "생성된 내용을 Description에 추가하시겠습니까?",
+                    "AI 생성 결과",
+                    Messages.getQuestionIcon()
+                );
+
+                if (result == Messages.YES) {
+                    String currentDescription = descriptionArea.getText().trim();
+                    if (currentDescription.isEmpty()) {
+                        descriptionArea.setText(generatedResult);
+                    } else {
+                        descriptionArea.setText(currentDescription + "\n\n" + generatedResult);
+                    }
+                }
+            }
+        }
     }
 }

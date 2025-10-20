@@ -984,9 +984,9 @@ public class JiraToolWindowContent {
         gbc.fill = GridBagConstraints.NONE;
         panel.add(mcpButtonContainer, gbc);
 
-        // Show dialog
+        // Show dialog - null parent centers it on screen
         int result = JOptionPane.showConfirmDialog(
-            contentPanel,
+            null,
             panel,
             "Jira Settings",
             JOptionPane.OK_CANCEL_OPTION,
