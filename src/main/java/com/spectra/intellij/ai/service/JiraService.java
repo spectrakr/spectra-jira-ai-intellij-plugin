@@ -143,7 +143,7 @@ public class JiraService {
     }
 
     public List<JiraSprint> getSprints(String boardId) throws IOException {
-        String url = baseUrl + "rest/agile/" + AGILE_API_VERSION + "/board/" + boardId + "/sprint?state=active";
+        String url = baseUrl + "rest/agile/" + AGILE_API_VERSION + "/board/" + boardId + "/sprint?state=active,future";
         logRequest("GET", url);
         Request request = buildRequest(url);
         
